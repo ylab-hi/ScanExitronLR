@@ -238,12 +238,9 @@ def find_introns(read_iterator, stranded):
                 junc_start = base_position
                 base_position += nt
                 if stranded == 'no':
-                    try:
-                        strand = '-' if r.is_reverse else '+'
-                        introns[(junc_start, base_position, strand)] += 1
-                        reads[(junc_start, base_position, strand)].append((r.seq, r.cigartuples[i-1][1], r.cigartuples[i+1][1], read_position))
-                    except KeyError: #this ignores junctions without XS tags, usually because they are non-canonical
-                        meta_data['no ts tag'].append((junc_start, base_position))
+                    strand = '-' if r.is_reverse else '+'
+                    introns[(junc_start, base_position, strand)] += 1
+                    reads[(junc_start, base_position, strand)].append((r.seq, r.cigartuples[i-1][1], r.cigartuples[i+1][1], read_position))
                 else:
                     if stranded == 'fr-firststrand':
                         strand = '+' if (r.is_read2 and not r.is_reverse) or \
@@ -803,9 +800,6 @@ def main(tmp_path):
                 for key in exitron:
                     out.write(str(exitron[key])+ '\t')
                 out.write('\n')
-            out.write('\nJunctions with no XS-tag in bam file:\n')
-            for junction in meta_data_out['no XS tag']:
-                out.write(str(junction) + '\n')
 
     # Clear tmp directory
     pybedtools.helpers.cleanup(remove_all=True)
