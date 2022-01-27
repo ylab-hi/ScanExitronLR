@@ -274,6 +274,8 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
     List of unfiltered exitrons.  Each exitron is a dictionary of features.
 
     """
+    # add jitter.  This will later be a parameter
+    jitter = 10
 
     intron_bed = []
 
@@ -285,7 +287,7 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
     for start, stop, strand in introns:
         #-1 and +2 so that we can capture the ends and beginning of adjacent transcripts
         #this allows us to determine whether there is a known donor or acceptor site
-        intron_bed.append((chrm, start-1, stop+2, introns[(start, stop, strand)], 0, strand))
+        intron_bed.append((chrm, start - 1 - jitter, stop + 1 + jitter + 1, introns[(start, stop, strand)], 0, strand))
 
     if not bool(introns):
         # No introns were found.
@@ -317,20 +319,20 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
 
         # Use the ends to check for known donors or acceptors
         if region_type == 'exon':
-            if intron_start + 1 == region_end:
+            if intron_start in range(region_end - jitter*2, region_end + 1):
                 # intron matches a known donor
-                known_splices.add((feature.chrom, intron_start+1, intron_end - 2 + 1, 'D'))
-            if intron_end - 2 == region_start:
+                known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D'))
+            if intron_end in range(region_start, region_start + 1 + jitter*2):
                 # intron matches a known acceptor
-                known_splices.add((feature.chrom, intron_start+1, intron_end - 2 + 1, 'A'))
+                known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A'))
 
 
-        elif region_type == 'CDS' and region_start < intron_start + 1 \
-            and region_end > intron_end - 1 :
+        elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
+            and region_end > intron_end - 1 - jitter:
                 if (intron_start, intron_end, region_type) not in exitrons_added:
                     exitrons.append({'chrom':feature.chrom,
-                                    'start':intron_start + 1,
-                                    'end':intron_end - 2 + 1, #plus 1 because of bedtools conventions,
+                                    'start':intron_start + 1 + jitter,
+                                    'end':intron_end - 2 - jitter + 1, #plus 1 because of bedtools conventions,
                                     'name':f'{gene_name}{intron_start+1}{intron_end - 2 + 1}',
                                     'region':region_type,
                                     'ao':intron_witnesses,
@@ -349,7 +351,8 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
             meta_data)
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq = 50, pso_min = 0.005, ao_min = 1, pso_ufmin = 0, ao_ufmin = 0, anchor_min = 5):
+
+def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
     """
     Parameters
     ----------
@@ -385,67 +388,87 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
     -------
     filtered exitrons and meta data
     """
+
+    """
+    The Plan:
+
+        iterate through exitrons, finding clusters
+        i.e.: collect intervals that are +/- 10 away
+
+
+    """
+    if not exitrons:
+        return [], meta_data
+
     #Need to compute reverse complement for splice junctions.
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
     res = []
+    groups = {'+':[],
+              '-':[]}
+    collection = {'+':[],
+                  '-':[]}
 
+    # DEBUG: [(e['start'], e['end']) for e in exitrons]
     # filter one exitron at a time
     for exitron in exitrons:
-        chrm = exitron['chrom']
         ao = exitron['ao']
         start = exitron['start']
         end = exitron['end']
         strand = exitron['strand']
 
-        if ao < ao_ufmin:
-            continue #not enough unfiltered reads support this exitron
-        read_data = reads[(start, end - 1, strand)]
+        if collection[strand]:
+            if (collection[strand][-1]['start'] - jitter <= start <= collection[strand][-1]['start'] + jitter and
+                collection[strand][-1]['end'] - jitter <= end <= collection[strand][-1]['end'] + jitter):
+                collection[strand].append(exitron)
+            else:
+                groups[strand].append(collection[strand])
+                collection[strand] = [exitron]
+        else:
+            collection[strand] = [exitron]
 
-        genome_seq = genome[chrm][start-10:end - 1+10].upper()
-        intron_seq = genome_seq[10:-10]
+    groups['+'].append(collection['+'])
+    groups['-'].append(collection['-'])
 
+    processed_exitrons = []
+    for group in groups['+']:
+        if not group:
+            break
+        # calculate canonical spice sites, calculate centers, re-align.
+        for e in group:
+            start = e['start']
+            end = e['end']
+            genome_seq = genome[e['chrom']][start:end - 1].upper()
+            e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
+        consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
+                          key = lambda e: e['ao'])
 
-        if strand == '+':
-            splice_site = intron_seq[:2] + '-' + intron_seq[-2:]
-            motif = genome_seq[:10] + '|' + splice_site[:2] + '-' + splice_site[-2:] + '|' + genome_seq[-10:]
-        elif strand == '-':
-            left = "".join(complement.get(base, base) for base in reversed(intron_seq[-2:]))
-            right = "".join(complement.get(base, base) for base in reversed(intron_seq[:2]))
-            splice_site = left + '-' + right
-            rgs = "".join(complement.get(base, base) for base in reversed(genome_seq[:10]))
-            lgs = "".join(complement.get(base, base) for base in reversed(genome_seq[-10:]))
-            motif = lgs + '|' + splice_site[:2] + '-' + splice_site[-2:] + '|' + rgs
+        consensus_e['ao'] = sum(e['ao'] for e in group)
+        processed_exitrons.append(consensus_e)
+    for group in groups['-']:
+        if not group:
+            break
+        # same but use reverse complement for splice-site
+        for e in group:
+            start = e['start']
+            end = e['end']
+            genome_seq = genome[e['chrom']][start:end - 1].upper()
+            right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
+            left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
+            e['splice_site'] = left + '-' + right
+        consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
+                          key = lambda e: e['ao'])
 
-        exitron['splice_site'] = splice_site
-        if verbose:
-            exitron['splice_motif'] = motif
+        consensus_e['ao'] = sum(e['ao'] for e in group)
+        processed_exitrons.append(consensus_e)
 
-        if splice_site.upper() not in ['GT-AG','GC-AG','AT-AC']:
-            meta_data['non_canonical'].append(exitron)
-            continue
+    for exitron in processed_exitrons:
+        ao = exitron['ao']
+        start = exitron['start']
+        end = exitron['end']
+        chrm = exitron['chrom']
 
-        right_anchor = (0,'')
-        left_anchor = (0,'')
-        ao_true = 0
-        for read in read_data:
-
-            l_anchor_len = read[1]
-            r_anchor_len = read[2]
-
-            # check 5' intron and 3' exon similarity
-            three_prime_exon_r = read[0][read[3]:read[3] + r_anchor_len]
-            five_prime_intron_r = intron_seq[:len(three_prime_exon_r)]
-            # check 5' exon and 3' intron similarity
-            five_prime_exon_r =  read[0][read[3] - l_anchor_len:read[3]]
-            three_prime_intron_r = intron_seq[-len(five_prime_exon_r):]
-
-            if three_prime_exon_r != five_prime_intron_r and five_prime_exon_r != three_prime_intron_r:
-                ao_true += 1
-
-
-        if ao_true == 0 and ao_min > 0:
-            exitron['ao_unfiltered'] = ao
-            meta_data['no_anchors_after_filtering'].append(exitron)
+        if ao < ao_min:
+            meta_data['low_ao'].append(exitron)
             continue
 
         # We subtract 1 because these coords are in BED format.
@@ -454,40 +477,163 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
         b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
         c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
 
-
         pso = ao/((a + b + c - ao*3)/3.0 + ao)
         psi = 1 - pso
         dp = int(ao/pso) if pso > 0 else 0
 
-        pso_true = ao_true/((a + b + c - ao_true*3)/3.0 + ao_true)
-        psi_true = 1 - pso_true
-        dp_true = int(ao_true/pso_true) if pso_true > 0 else 0
-
         # Check whether attributes exceed minimum values
-        if (pso >= pso_ufmin and
-            pso_true >= pso_min and
-            ao_true >= ao_min):
-
-            exitron['ao'] = ao_true
-            exitron['pso'] = pso_true
-            exitron['psi'] = psi_true
-            exitron['dp'] = dp_true
-
-            exitron['ao_unfiltered'] = ao
-            exitron['pso_unfiltered'] = pso
-            exitron['psi_unfiltered'] = psi
-            exitron['dp_unfiltered'] = dp
-
-            exitron['delta_ao'] = ao - ao_true
-
-
-            left_anchor = max(read_data, key = lambda x: x[1])
-            right_anchor = max(read_data, key = lambda x: x[2])
-            if left_anchor[2] < anchor_min or right_anchor[3] < anchor_min:
-                meta_data['low_anchor_exitron'].append(exitron)
-            else:
-                res.append(exitron)
+        if pso >= pso_min:
+            exitron['pso'] = pso
+            exitron['psi'] = psi
+            exitron['dp'] = dp
+            res.append(exitron)
+        else:
+            meta_data['low_pso'].append(exitron)
     return res, meta_data
+
+
+
+# for reference, here is the short read version:
+
+# def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq = 50, pso_min = 0.005, ao_min = 1, pso_ufmin = 0, ao_ufmin = 0, anchor_min = 5):
+#     """
+#     Parameters
+#     ----------
+#     exitrons : list
+#         list of unfiltered exitrons from exitron_caller.
+#     reads : dict
+#         Each intron is a key, and the value is list of (read_seq, ref_seq, left_anchor, right_anchor)
+#     bamfile : pysam.AlignmentFile
+#     genome : pysam.libcfaidx.FastaFile
+#         Random access to reference genome.
+#     meta_data : dict
+#     verbose : bool
+#         If true, we report optional statistics
+#     mapq : TYPE, optional
+#         Only considers reads from bamfile with quality >= mapq. The default is 50.
+#         This is needed to calculate pso.
+#     pso_min : float, optional
+#         Number reads that witness the exitron over the number of reads within the
+#         spliced out region. The default is 0.05.
+#     ao_min : int, optional
+#         Minimum number of reads witnessing the exitron. The default is 3.
+
+#     pso_ufmin : float, optional
+#         Number reads that witness the exitron over the number of reads within the
+#         spliced out region, before filtering (used for backwards compatibility). The default is 0.05.
+#     ao_ufmin : int, optional
+#         Minimum number of reads witnessing the exitron, before filtering (used for
+#         backwards compatibility). The default is 3.
+#     anchor_min : int, optional
+#         Minimum anchor length.  The default is 5.
+
+#     Returns
+#     -------
+#     filtered exitrons and meta data
+#     """
+#     #Need to compute reverse complement for splice junctions.
+#     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+#     res = []
+
+#     # filter one exitron at a time
+#     for exitron in exitrons:
+#         chrm = exitron['chrom']
+#         ao = exitron['ao']
+#         start = exitron['start']
+#         end = exitron['end']
+#         strand = exitron['strand']
+
+#         if ao < ao_ufmin:
+#             continue #not enough unfiltered reads support this exitron
+#         read_data = reads[(start, end - 1, strand)]
+
+#         genome_seq = genome[chrm][start-10:end - 1+10].upper()
+#         intron_seq = genome_seq[10:-10]
+
+
+#         if strand == '+':
+#             splice_site = intron_seq[:2] + '-' + intron_seq[-2:]
+#             motif = genome_seq[:10] + '|' + splice_site[:2] + '-' + splice_site[-2:] + '|' + genome_seq[-10:]
+#         elif strand == '-':
+#             left = "".join(complement.get(base, base) for base in reversed(intron_seq[-2:]))
+#             right = "".join(complement.get(base, base) for base in reversed(intron_seq[:2]))
+#             splice_site = left + '-' + right
+#             rgs = "".join(complement.get(base, base) for base in reversed(genome_seq[:10]))
+#             lgs = "".join(complement.get(base, base) for base in reversed(genome_seq[-10:]))
+#             motif = lgs + '|' + splice_site[:2] + '-' + splice_site[-2:] + '|' + rgs
+
+#         exitron['splice_site'] = splice_site
+#         if verbose:
+#             exitron['splice_motif'] = motif
+
+#         if splice_site.upper() not in ['GT-AG','GC-AG','AT-AC']:
+#             meta_data['non_canonical'].append(exitron)
+#             continue
+
+#         right_anchor = (0,'')
+#         left_anchor = (0,'')
+#         ao_true = 0
+#         for read in read_data:
+
+#             l_anchor_len = read[1]
+#             r_anchor_len = read[2]
+
+#             # check 5' intron and 3' exon similarity
+#             three_prime_exon_r = read[0][read[3]:read[3] + r_anchor_len]
+#             five_prime_intron_r = intron_seq[:len(three_prime_exon_r)]
+#             # check 5' exon and 3' intron similarity
+#             five_prime_exon_r =  read[0][read[3] - l_anchor_len:read[3]]
+#             three_prime_intron_r = intron_seq[-len(five_prime_exon_r):]
+
+#             if three_prime_exon_r != five_prime_intron_r and five_prime_exon_r != three_prime_intron_r:
+#                 ao_true += 1
+
+
+#         if ao_true == 0 and ao_min > 0:
+#             exitron['ao_unfiltered'] = ao
+#             meta_data['no_anchors_after_filtering'].append(exitron)
+#             continue
+
+#         # We subtract 1 because these coords are in BED format.
+#         mid = (start+end)/2
+#         a = bamfile.count(chrm, start = start - 1, stop = start, read_callback = lambda x: x.mapq > mapq)
+#         b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
+#         c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
+
+
+#         pso = ao/((a + b + c - ao*3)/3.0 + ao)
+#         psi = 1 - pso
+#         dp = int(ao/pso) if pso > 0 else 0
+
+#         pso_true = ao_true/((a + b + c - ao_true*3)/3.0 + ao_true)
+#         psi_true = 1 - pso_true
+#         dp_true = int(ao_true/pso_true) if pso_true > 0 else 0
+
+#         # Check whether attributes exceed minimum values
+#         if (pso >= pso_ufmin and
+#             pso_true >= pso_min and
+#             ao_true >= ao_min):
+
+#             exitron['ao'] = ao_true
+#             exitron['pso'] = pso_true
+#             exitron['psi'] = psi_true
+#             exitron['dp'] = dp_true
+
+#             exitron['ao_unfiltered'] = ao
+#             exitron['pso_unfiltered'] = pso
+#             exitron['psi_unfiltered'] = psi
+#             exitron['dp_unfiltered'] = dp
+
+#             exitron['delta_ao'] = ao - ao_true
+
+
+#             left_anchor = max(read_data, key = lambda x: x[1])
+#             right_anchor = max(read_data, key = lambda x: x[2])
+#             if left_anchor[2] < anchor_min or right_anchor[3] < anchor_min:
+#                 meta_data['low_anchor_exitron'].append(exitron)
+#             else:
+#                 res.append(exitron)
+#     return res, meta_data
 
 
 #===============================================================================
@@ -495,7 +641,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, pso_ufmin, ao_ufmin, anchor_min, verbose, stranded):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, verbose, stranded):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -516,10 +662,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                     verbose,
                     mapq,
                     pso_min,
-                    ao_min,
-                    pso_ufmin,
-                    ao_ufmin,
-                    anchor_min)
+                    ao_min)
     genome.close()
     bamfile.close()
 
@@ -576,8 +719,6 @@ def main(tmp_path):
                                                         args.mapq,
                                                         args.pso_min,
                                                         args.ao_min,
-                                                        args.pso_ufmin,
-                                                        args.ao_ufmin,
                                                         args.anchor_min,
                                                         args.verbose,
                                                         args.stranded), callback = collect_result))
@@ -595,9 +736,6 @@ def main(tmp_path):
                                         args.mapq,
                                         args.pso_min,
                                         args.ao_min,
-                                        args.pso_ufmin,
-                                        args.ao_ufmin,
-                                        args.anchor_min,
                                         args.verbose,
                                         args.stranded)
             collect_result(output)
@@ -622,12 +760,7 @@ def main(tmp_path):
                   'transcript_id',
                   'pso',
                   'psi',
-                  'dp',
-                  'ao_unfiltered',
-                  'pso_unfiltered',
-                  'psi_unfiltered',
-                  'dp_unfiltered',
-                  'delta_ao']
+                  'dp']
         if args.verbose:
             header = header + ['splice_motif',
                                    'left_anchor_length',
