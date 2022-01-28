@@ -391,13 +391,11 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
     # filter one exitron at a time
     for exitron in exitrons:
         ao = exitron['ao']
-        start = exitron['start']
-        end = exitron['end']
         strand = exitron['strand']
 
         if collection[strand]:
-            if (collection[strand][-1]['start'] - jitter <= start <= collection[strand][-1]['start'] + jitter and
-                collection[strand][-1]['end'] - jitter <= end <= collection[strand][-1]['end'] + jitter):
+            if (collection[strand][-1]['start'] - jitter <= exitron['start'] <= collection[strand][-1]['start'] + jitter and
+                collection[strand][-1]['end'] - jitter <= exitron['end'] <= collection[strand][-1]['end'] + jitter):
                 collection[strand].append(exitron)
             else:
                 groups[strand].append(collection[strand])
@@ -408,73 +406,108 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
     groups['+'].append(collection['+'])
     groups['-'].append(collection['-'])
 
-    processed_exitrons = []
-    for group in groups['+']:
-        if not group:
-            break
-        # calculate canonical spice sites, calculate centers, re-align.
-        for e in group:
-            start = e['start']
-            end = e['end']
-            genome_seq = genome[e['chrom']][start:end - 1].upper()
-            e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
+    # processed_exitrons = []
+    for strand in groups:
+        for group in groups[strand]:
 
-        try:
-            consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
-                              key = lambda e: e['ao'])
+            if not group:
+                break
+            # calculate canonical spice sites, calculate centers, re-align.
+            for e in group:
+                start = e['start']
+                end = e['end']
+                genome_seq = genome[e['chrom']][start:end - 1].upper()
+                if strand == '+':
+                    e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
+                elif strand == '-':
+                    right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
+                    left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
+                    e['splice_site'] = left + '-' + right
+            try:
+                consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
+                                  key = lambda e: e['ao'])
 
-            consensus_e['ao'] = sum(e['ao'] for e in group)
-            processed_exitrons.append(consensus_e)
-        except ValueError:
-            pass # this occurs when there are no cannonical splice sites within the group
+                consensus_e['ao'] = sum(e['ao'] for e in group)
+            except ValueError:
+                continue # this occurs when there are no cannonical splice sites within the group
 
-    for group in groups['-']:
-        if not group:
-            break
-        # same but use reverse complement for splice-site
-        for e in group:
-            start = e['start']
-            end = e['end']
-            genome_seq = genome[e['chrom']][start:end - 1].upper()
-            right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
-            left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
-            e['splice_site'] = left + '-' + right
-        try:
-            consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
-                              key = lambda e: e['ao'])
+            ao = consensus_e['ao']
+            start = consensus_e['start']
+            end = consensus_e['end']
+            chrm = consensus_e['chrom']
 
-            consensus_e['ao'] = sum(e['ao'] for e in group)
-            processed_exitrons.append(consensus_e)
-        except:
-            pass # this occurs when there are no cannonical splice sites within group
-    for exitron in processed_exitrons:
-        ao = exitron['ao']
-        start = exitron['start']
-        end = exitron['end']
-        chrm = exitron['chrom']
+            if ao < ao_min:
+                meta_data['low_ao'].append(consensus_e)
+                continue
 
-        if ao < ao_min:
-            meta_data['low_ao'].append(exitron)
-            continue
+            # We subtract 1 because these coords are in BED format.
+            mid = (start+end)/2
+            a = bamfile.count(chrm, start = start - 1, stop = start, read_callback = lambda x: x.mapq > mapq)
+            b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
+            c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
 
-        # We subtract 1 because these coords are in BED format.
-        mid = (start+end)/2
-        a = bamfile.count(chrm, start = start - 1, stop = start, read_callback = lambda x: x.mapq > mapq)
-        b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
-        c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
+            pso = ao/((a + b + c - ao*3)/3.0 + ao)
+            psi = 1 - pso
+            dp = int(ao/pso) if pso > 0 else 0
 
-        pso = ao/((a + b + c - ao*3)/3.0 + ao)
-        psi = 1 - pso
-        dp = int(ao/pso) if pso > 0 else 0
+            # Check whether attributes exceed minimum values
+            if pso >= pso_min:
+                consensus_e['pso'] = pso
+                consensus_e['psi'] = psi
+                consensus_e['dp'] = dp
+                res.append(consensus_e)
+            else:
+                meta_data['low_pso'].append(consensus_e)
 
-        # Check whether attributes exceed minimum values
-        if pso >= pso_min:
-            exitron['pso'] = pso
-            exitron['psi'] = psi
-            exitron['dp'] = dp
-            res.append(exitron)
-        else:
-            meta_data['low_pso'].append(exitron)
+
+
+    # for group in groups['-']:
+    #     if not group:
+    #         break
+    #     # same but use reverse complement for splice-site
+    #     for e in group:
+    #         start = e['start']
+    #         end = e['end']
+    #         genome_seq = genome[e['chrom']][start:end - 1].upper()
+    #         right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
+    #         left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
+    #         e['splice_site'] = left + '-' + right
+    #     try:
+    #         consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
+    #                           key = lambda e: e['ao'])
+
+    #         consensus_e['ao'] = sum(e['ao'] for e in group)
+    #         processed_exitrons.append(consensus_e)
+    #     except:
+    #         pass # this occurs when there are no cannonical splice sites within group
+    # for exitron in processed_exitrons:
+    #     ao = exitron['ao']
+    #     start = exitron['start']
+    #     end = exitron['end']
+    #     chrm = exitron['chrom']
+
+    #     if ao < ao_min:
+    #         meta_data['low_ao'].append(exitron)
+    #         continue
+
+    #     # We subtract 1 because these coords are in BED format.
+    #     mid = (start+end)/2
+    #     a = bamfile.count(chrm, start = start - 1, stop = start, read_callback = lambda x: x.mapq > mapq)
+    #     b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
+    #     c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
+
+    #     pso = ao/((a + b + c - ao*3)/3.0 + ao)
+    #     psi = 1 - pso
+    #     dp = int(ao/pso) if pso > 0 else 0
+
+    #     # Check whether attributes exceed minimum values
+    #     if pso >= pso_min:
+    #         exitron['pso'] = pso
+    #         exitron['psi'] = psi
+    #         exitron['dp'] = dp
+    #         res.append(exitron)
+    #     else:
+    #         meta_data['low_pso'].append(exitron)
     return res, meta_data
 
 
