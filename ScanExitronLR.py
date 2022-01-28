@@ -418,11 +418,16 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             end = e['end']
             genome_seq = genome[e['chrom']][start:end - 1].upper()
             e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
-        consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
-                          key = lambda e: e['ao'])
 
-        consensus_e['ao'] = sum(e['ao'] for e in group)
-        processed_exitrons.append(consensus_e)
+        try:
+            consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
+                              key = lambda e: e['ao'])
+
+            consensus_e['ao'] = sum(e['ao'] for e in group)
+            processed_exitrons.append(consensus_e)
+        except ValueError:
+            pass # this occurs when there are no cannonical splice sites within the group
+
     for group in groups['-']:
         if not group:
             break
@@ -434,12 +439,14 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
             left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
             e['splice_site'] = left + '-' + right
-        consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
-                          key = lambda e: e['ao'])
+        try:
+            consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
+                              key = lambda e: e['ao'])
 
-        consensus_e['ao'] = sum(e['ao'] for e in group)
-        processed_exitrons.append(consensus_e)
-
+            consensus_e['ao'] = sum(e['ao'] for e in group)
+            processed_exitrons.append(consensus_e)
+        except:
+            pass # this occurs when there are no cannonical splice sites within group
     for exitron in processed_exitrons:
         ao = exitron['ao']
         start = exitron['start']
