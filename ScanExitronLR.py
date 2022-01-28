@@ -698,7 +698,6 @@ def main(tmp_path):
                                                         args.mapq,
                                                         args.pso_min,
                                                         args.ao_min,
-                                                        args.anchor_min,
                                                         args.verbose,
                                                         args.stranded), callback = collect_result))
         pool.close()
