@@ -312,7 +312,7 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
                     exitrons.append({'chrom':feature.chrom,
                                     'start':intron_start + 1 + jitter,
                                     'end':intron_end - 2 - jitter + 1, #plus 1 because of bedtools conventions,
-                                    'name':f'{gene_name}{intron_start+1}{intron_end - 2 + 1}',
+                                    'name':f'{gene_name}{intron_start + 1 + jitter}{intron_end - 2 - jitter + 1}',
                                     'region':region_type,
                                     'ao':intron_witnesses,
                                     'strand':feature.strand,
