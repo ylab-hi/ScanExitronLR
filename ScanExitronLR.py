@@ -100,24 +100,6 @@ def parse_args():
         default=0.005,
     )
     parser.add_argument(
-        "-ufa",
-        "--unfiltered_ao",
-        action="store",
-        dest="ao_ufmin",
-        type=int,
-        help="AO unfiltered cutoff (Used for backwards compatibility with version 1) (default: %(default)s)",
-        default=0,
-    )
-    parser.add_argument(
-        "-ufp",
-        "--unfiltered_pso",
-        action="store",
-        dest="pso_ufmin",
-        type=float,
-        help="PSO unfiltered cutoff (Used for backwards compatibility with version 1) (default: %(default)s)",
-        default=0,
-    )
-    parser.add_argument(
         "-al",
         "--anchor_length",
         action="store",
