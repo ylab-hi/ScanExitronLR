@@ -222,7 +222,7 @@ def find_introns(read_iterator, stranded):
                 if stranded == 'no':
                     strand = '-' if r.is_reverse else '+'
                     introns[(junc_start, base_position, strand)] += 1
-                    reads[(junc_start, base_position, strand)].append((r.seq, r.cigartuples[i-1][1], r.cigartuples[i+1][1], read_position))
+                    reads[(junc_start, base_position, strand)].append(r.query_name)
                 else:
                     if stranded == 'fr-firststrand':
                         strand = '+' if (r.is_read2 and not r.is_reverse) or \
@@ -231,7 +231,7 @@ def find_introns(read_iterator, stranded):
                         strand = '+' if (r.is_read1 and not r.is_reverse) or \
                                         (r.is_read2 and r.is_reverse) else '-'
                     introns[(junc_start, base_position, strand)] += 1
-                    reads[(junc_start, base_position, strand)].append((r.seq, r.get_reference_sequence(), r.cigartuples[i-1][1], r.cigartuples[i+1][1], read_position))
+                    reads[(junc_start, base_position, strand)].append(r.query_name)
 
     return introns, reads, meta_data
 
@@ -291,6 +291,7 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
         region_start = feature.start
         region_end = feature.end
         gene_name = feature.attrs['gene_name']
+        gene_id = feature.attrs['gene_id']
 
         intron_start = int(feature.fields[10])
         intron_end = int(feature.fields[11])
@@ -312,11 +313,12 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
                     exitrons.append({'chrom':feature.chrom,
                                     'start':intron_start + 1 + jitter,
                                     'end':intron_end - 2 - jitter + 1, #plus 1 because of bedtools conventions,
-                                    'name':f'{gene_name}{intron_start + 1 + jitter}{intron_end - 2 - jitter + 1}',
+                                    'name':f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}',
                                     'region':region_type,
                                     'ao':intron_witnesses,
                                     'strand':feature.strand,
-                                    'gene_symbol':gene_name,
+                                    'gene_name':gene_name,
+                                    'gene_id':gene_id,
                                     'length':intron_end - 2 + 1 - (intron_start + 1) - 1,
                                     'splice_site':'splice_site',
                                     'transcript_id':feature.attrs['transcript_id']})
@@ -406,12 +408,10 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
     groups['+'].append(collection['+'])
     groups['-'].append(collection['-'])
 
-    # processed_exitrons = []
     for strand in groups:
         for group in groups[strand]:
-
             if not group:
-                break
+                continue # no exitrons found in this strand
             # calculate canonical spice sites, calculate centers, re-align.
             for e in group:
                 start = e['start']
@@ -426,8 +426,9 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             try:
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
                                   key = lambda e: e['ao'])
-
-                consensus_e['ao'] = sum(e['ao'] for e in group)
+                tot_ao = sum(e['ao'] for e in group)
+                consensus_e['conf'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
+                consensus_e['ao'] = tot_ao
             except ValueError:
                 continue # this occurs when there are no cannonical splice sites within the group
 
@@ -455,6 +456,9 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
                 consensus_e['pso'] = pso
                 consensus_e['psi'] = psi
                 consensus_e['dp'] = dp
+                consensus_e['reads'] = ','.join(reads[(consensus_e['start'],
+                                                       consensus_e['end'] - 1,
+                                                       consensus_e['strand'])])
                 res.append(consensus_e)
             else:
                 meta_data['low_pso'].append(consensus_e)
@@ -772,13 +776,16 @@ def main(tmp_path):
                   'region',
                   'ao',
                   'strand',
-                  'gene_symbol',
+                  'gene_name',
+                  'gene_id',
                   'length',
                   'splice_site',
                   'transcript_id',
                   'pso',
                   'psi',
-                  'dp']
+                  'dp',
+                  'conf',
+                  'reads']
         if args.verbose:
             header = header + ['splice_motif',
                                    'left_anchor_length',
