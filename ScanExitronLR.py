@@ -319,10 +319,20 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
                                     'strand':feature.strand,
                                     'gene_name':gene_name,
                                     'gene_id':gene_id,
-                                    'length':intron_end - 2 + 1 - (intron_start + 1) - 1,
+                                    'length':intron_end - 2 - jitter + 1 - (intron_start + 1 + jitter) - 1,
                                     'splice_site':'splice_site',
                                     'transcript_id':feature.attrs['transcript_id']})
                     exitrons_added.append((intron_start, intron_end, region_type))
+                elif 'tag' in feature.attrs.keys():
+                    if ('basic' in feature.attrs['tag'] or
+                          'CCDS' in feature.attrs['tag'] or
+                          'ccdsid' in feature.attrs.keys()):
+                        #TODO pybedtools only grants access to ONE tag, we need to look at all the tags
+                        #submit an issue with pybedtools
+                        for e in exitrons:
+                            if e['name'] == f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}':
+                                e['transcript_id'] = feature.attrs['transcript_id']
+                                break
 
     del intersection
 
