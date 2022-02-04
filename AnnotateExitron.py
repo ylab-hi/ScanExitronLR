@@ -12,6 +12,8 @@ import pybedtools
 import gffutils
 import pysam
 import argparse
+import subprocess
+import pandas as pd
 from Bio.Seq import Seq
 from shutil import rmtree
 
@@ -89,6 +91,7 @@ def read_exitron_file(filename):
     List of dictionaries, where each dict is an exitron record.
 
     """
+    exitrons = []
     with open(filename, 'r') as f:
         header = f.readline().rstrip().split('\t')
         for line in f:
@@ -96,7 +99,8 @@ def read_exitron_file(filename):
             entries = line.rstrip().split('\t')
             for col, ent in zip(header, entries):
                 exitron[col] = ent
-            yield exitron
+            exitrons.append(exitron)
+    return exitrons
 
 
 #=============================================================================
@@ -212,8 +216,6 @@ def categorize_exitron(exitron, bamfile, db, genome_fn):
 
     (description, detail, dna_seq, prot_seq)
     """
-    if exitron['transcript_id'] == 'ENST00000450966.5':
-        print('here')
     seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon = get_gene_exitron_seq(exitron, db, genome_fn)
     if not seq:
         # without start/stop codons, all we can infer is truncation vs frameshift
@@ -298,6 +300,99 @@ def categorize_exitron(exitron, bamfile, db, genome_fn):
                 str(seq[start_codon_pos:stop_codon_pos+3]),
                 str(seq[start_codon_pos:stop_codon_pos+3].translate()))
 
+def identify_transcripts(exitrons, db, bamfile, tmp_path):
+    # construct new bamfile
+    tmp_bamfile_exitrons = pysam.AlignmentFile(tmp_path + '/e_tmp.bam', 'wb', template = bamfile)
+    tmp_bamfile_normals = pysam.AlignmentFile(tmp_path + '/tmp.bam', 'wb', template = bamfile)
+    for e in exitrons:
+        e_reads = e['reads'].split(',')
+        # fetch reads at exitron junction
+        for read in bamfile.fetch(e['chrom'], start = int(e['start']), stop = int(e['end'])):
+            if read.query_name in e_reads:
+                tmp_bamfile_exitrons.write(read)
+            else:
+                tmp_bamfile_normals.write(read)
+    tmp_bamfile_exitrons.close()
+    tmp_bamfile_normals.close()
+    pysam.sort('-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
+    pysam.sort('-o', tmp_path + '/tmp_sorted.bam', tmp_path + '/tmp.bam')
+    pysam.index(tmp_path + '/e_tmp_sorted.bam')
+    pysam.index(tmp_path + '/tmp_sorted.bam')
+
+    # build a small gtf file of only thoes exitron spliced genes
+    with open(tmp_path + '/tmp.gtf', 'w') as f:
+        for e in exitrons:
+            for region in db.children(db[e['gene_id']], order_by = 'start'):
+                f.write(str(region) + '\n')
+
+    # run liqa to create refgene
+    subprocess.run(['liqa',
+                    '-task',
+                    'refgene',
+                    '-ref',
+                    f'{tmp_path + "/tmp.gtf"}',
+                    '-format',
+                    'gtf',
+                    '-out',
+                    f'{tmp_path + "/tmp.refgene"}'])
+
+    # run liqa to quantify isoform expression
+    jitter = 10 #TODO make this an argument
+    subprocess.run(['liqa',
+                    '-task',
+                    'quantify',
+                    '-refgene',
+                    f'{tmp_path + "/tmp.refgene"}',
+                    '-bam',
+                    f'{tmp_path + "/e_tmp_sorted.bam"}',
+                    '-out',
+                    f'{tmp_path + "/isoform_estimates.out"}', #TODO maybe it's worth it to keep this file
+                    '-max_distance',
+                    f'{jitter}',
+                    '-f_weight',
+                    '0'])
+
+    ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
+    for e in exitrons:
+        gene = e['gene_name']
+        ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
+        transcripts = list(ie_slice[ie_slice['RelativeAbundance'] > 0.1]['IsoformName'])
+        try:
+            if not transcripts: transcripts = list(ie_slice[ie_slice['RelativeAbundance'] == max(ie_slice['RelativeAbundance'])]['IsoformName'])
+        except ValueError:
+            # transcript could not be measured by liqa
+            e['transcript_id'] += ',NA' # revert back to default transcript_id
+            continue
+        t_str = ''
+        for t in transcripts:
+            t_str += f'{t},{round(float(ie_slice[ie_slice["IsoformName"] == t]["RelativeAbundance"]), 4)};'
+        e['transcript_id'] = t_str[:-1] # leave off trailing ;
+
+    return exitrons
+    """
+    Outline:
+        first we need to construct a tmp.refgene with all the exitron spliced genes
+        second we need to construct a bamfile with all the exitron spliced reads
+        third we need to run liqa
+
+    Making the new bamfile:
+        bamfile = pysam.AlignmentFile(bamfile_fn, 'rb')
+        newfile = pysam.AlignmentFile('data/tmp.bam', 'w', template = samfile)
+        for e in exitrons:
+            # pileup on the exitron region
+            # find reads with exitron
+            newfile.write(reads)
+
+    creating tmp.refgene:
+
+        with open('tmp.gtf', 'w') as f:
+            for region in db.children(db[gene], order_by = 'start'):
+                f.write(str(region) + '\n')
+
+        liqa -task refgene -ref tmp.gtf -format gtf -out tmp.refgene
+        use : subprocess.run(["ls", "-l"])
+
+    """
 
 # seq, start_codon_pos, stop_codon_pos, exitron_pos, after_start_codon = get_gene_exitron_seq(exitron)
 # seq_full = get_gene_seq(exitron)
@@ -332,6 +427,9 @@ def main(tmp_path):
     except:
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
+
+
+
     with open(args.out, 'w') as out:
         header = ['chrom',
                   'start',
@@ -353,7 +451,10 @@ def main(tmp_path):
         for column in header:
             out.write(column + '\t')
         out.write('\n')
-        for exitron in read_exitron_file(args.input):
+        exitrons = read_exitron_file(args.input)
+        identify_transcripts(exitrons, db, bamfile, tmp_path)
+        for exitron in exitrons:
+
             categorize_exitron(exitron, bamfile, db, args.genome_ref)
             for column in header:
                 out.write(str(exitron[column]) + '\t')

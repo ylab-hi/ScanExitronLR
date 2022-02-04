@@ -474,6 +474,51 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
                 meta_data['low_pso'].append(consensus_e)
 
 
+def identify_transcripts(exitrons, bamfile, tmp_path):
+    raise NotImplementedError
+
+    # construct new bamfile
+    chrm = exitrons[0]['chrom']
+    tmp_bamfile_exitrons = pysam.AlignmentFile(tmp_path + f'{chrm}_e_tmp.bam', 'w', template = bamfile)
+    tmp_bamfile_normals = pysam.AlignmentFile(tmp_path + f'{chrm}_tmp.bam', 'w', template = bamfile)
+    for e in exitrons:
+        e_reads = exitrons['reads'].split(',')
+        # fetch reads at exitron junction
+        for read in bamfile.fetch(chrm, start = e['start'], stop = e['end']):
+            if read.query_name in e_reads:
+                tmp_bamfile_exitrons.write(read)
+            else:
+                tmp_bamfile_normals.write(read)
+
+
+
+
+    """
+    Outline:
+        first we need to construct a tmp.refgene with all the exitron spliced genes
+        second we need to construct a bamfile with all the exitron spliced reads
+        third we need to run liqa
+
+    Making the new bamfile:
+        bamfile = pysam.AlignmentFile(bamfile_fn, 'rb')
+        newfile = pysam.AlignmentFile('data/tmp.bam', 'w', template = samfile)
+        for e in exitrons:
+            # pileup on the exitron region
+            # find reads with exitron
+            newfile.write(reads)
+
+    creating tmp.refgene:
+
+        with open('tmp.gtf', 'w') as f:
+            for region in db.children(db[gene], order_by = 'start'):
+                f.write(str(region) + '\n')
+
+        liqa -task refgene -ref tmp.gtf -format gtf -out tmp.refgene
+        use : subprocess.run(["ls", "-l"])
+
+    """
+
+
 
     # for group in groups['-']:
     #     if not group:
