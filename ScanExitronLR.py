@@ -439,7 +439,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             try:
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
                                   key = lambda e: e['ao'])
-                tot_ao = sum(e['ao'] for e in group)
+                tot_ao = sum(e['ao'] for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC'])
                 consensus_e['conf'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
                 consensus_e['ao'] = tot_ao
             except ValueError:
@@ -799,6 +799,11 @@ def main(tmp_path):
             print(f'There is a problem opening bam file at: {args.input}')
     bamfile.close()
 
+    try:
+        subprocess.run(['liqa'])
+    except FileNotFoundError:
+        print('ERROR: unable to locate LIQA. Please install with "pip install liqa"')
+
     # prepage gffutils database
     try:
         print('Preparing annotation database...')
@@ -860,6 +865,7 @@ def main(tmp_path):
     exitrons = []
     for chrm in results:
         exitrons.extend(results[chrm])
+
     print('Quantifying transcripts.')
     sys.stdout.flush()
     # update transcripts
@@ -893,7 +899,6 @@ def main(tmp_path):
             out.write(column + '\t')
         out.write('\n')
         for exitron in exitrons:
-            #check if chromosome is empty or not
             for column in header:
                 out.write(str(exitron[column]) + '\t')
             out.write('\n')
