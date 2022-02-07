@@ -68,6 +68,7 @@ def parse_args():
         dest="bam_file",
         help="Input bamfile. (optional)",
         default=None,
+        required=True
     )
     parser.add_argument(
         "-pd",
@@ -187,6 +188,15 @@ def get_gene_exitron_seq(exitron, db, genome_fn):
             seq += cds_seq[:e_start - exon.start + 1] + cds_seq[e_end - exon.start:]
             seq_pos.extend([*range(exon.start, e_start + 1)])
             seq_pos.extend([*range(e_end, exon.end + 1)])
+
+            # if we encountered the start or stop codon in the same exon as the
+            # exitron, the start and stop codons will be positioned relative to
+            # unspliced sequence.  thus we need to subtract length of exitron
+            if exon.start <= start_codon.start <= exon.end and strand == '-':
+                start_codon_pos -= int(exitron['length'])
+            if exon.start <= stop_codon.start <= exon.end and strand == '+':
+                stop_codon_pos -= int(exitron['length'])
+
         else:
             # if strand is -, exon.sequence returns reverse complement
             # however, it's easier to build forward strand exon by exon and
