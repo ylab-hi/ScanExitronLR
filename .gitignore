@@ -2,3 +2,4 @@ data/*
 .spyproject/*
 development_notes.txt
 scanexitron_tmp*/*
+!data/prot_domains_pfam.tsv

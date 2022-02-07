@@ -70,6 +70,14 @@ def parse_args():
         default=None,
     )
     parser.add_argument(
+        "-pd",
+        "--prot-domains",
+        action="store",
+        dest="prot_domains",
+        help="Input tab separated file of pfam protein domains. (optional)",
+        default='data/prot_domains_pfam.tsv',
+    )
+    parser.add_argument(
         "-v", "--version", action="version", version="%(prog)s {}".format(__version__)
     )
     args = parser.parse_args()
@@ -152,14 +160,14 @@ def get_gene_exitron_seq(exitron, db, genome_fn):
     seq = ''
     e_start = int(exitron['start'])
     e_end = int(exitron['end'])
-    transcript = exitron['transcript_id']
     strand = exitron['strand']
+    transcript = exitron['transcript_id']
     try:
         start_codon = next(db.children(db[transcript], featuretype = ['start_codon']))
         stop_codon = next(db.children(db[transcript], featuretype = ['stop_codon']))
     except StopIteration: # this occurs when the annotation does not provide a start/stop codon
         # see tags 'mRNA_start_NF', 'cds_start_NF' etc
-        return None, None, None, None, None, None
+        return None, None, None, None, None, None, None
     ej_after_start_codon = []
     ej_before_start_codon = []
     after_start_codon = False
@@ -198,7 +206,7 @@ def get_gene_seq(exitron, db, genome_fn):
         seq += cds.sequence(genome_fn).upper() if exitron['strand'] == '+' else str(Seq(cds.sequence(genome_fn).upper()).reverse_complement())
     return seq
 
-def categorize_exitron(exitron, bamfile, db, genome_fn):
+def categorize_exitron(exitron, transcript, bamfile, db, genome_fn):
     """
 
 
@@ -216,6 +224,7 @@ def categorize_exitron(exitron, bamfile, db, genome_fn):
 
     (description, detail, dna_seq, prot_seq)
     """
+    exitron['transcript_id'] = transcript
     seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon = get_gene_exitron_seq(exitron, db, genome_fn)
     if not seq:
         # without start/stop codons, all we can infer is truncation vs frameshift
@@ -226,6 +235,7 @@ def categorize_exitron(exitron, bamfile, db, genome_fn):
         exitron['nmd_status_read_percentage'] = 'NA'
         exitron['downstream_inframe_AUG'] = 'NA'
         exitron['start_proximal_PTC'] = 'NA'
+        return exitron, None, None
 
     seq = Seq(seq) if exitron['strand'] == '+' else Seq(seq).reverse_complement()
     if exitron['strand'] == '-':
@@ -300,99 +310,7 @@ def categorize_exitron(exitron, bamfile, db, genome_fn):
                 str(seq[start_codon_pos:stop_codon_pos+3]),
                 str(seq[start_codon_pos:stop_codon_pos+3].translate()))
 
-def identify_transcripts(exitrons, db, bamfile, tmp_path):
-    # construct new bamfile
-    tmp_bamfile_exitrons = pysam.AlignmentFile(tmp_path + '/e_tmp.bam', 'wb', template = bamfile)
-    tmp_bamfile_normals = pysam.AlignmentFile(tmp_path + '/tmp.bam', 'wb', template = bamfile)
-    for e in exitrons:
-        e_reads = e['reads'].split(',')
-        # fetch reads at exitron junction
-        for read in bamfile.fetch(e['chrom'], start = int(e['start']), stop = int(e['end'])):
-            if read.query_name in e_reads:
-                tmp_bamfile_exitrons.write(read)
-            else:
-                tmp_bamfile_normals.write(read)
-    tmp_bamfile_exitrons.close()
-    tmp_bamfile_normals.close()
-    pysam.sort('-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
-    pysam.sort('-o', tmp_path + '/tmp_sorted.bam', tmp_path + '/tmp.bam')
-    pysam.index(tmp_path + '/e_tmp_sorted.bam')
-    pysam.index(tmp_path + '/tmp_sorted.bam')
 
-    # build a small gtf file of only thoes exitron spliced genes
-    with open(tmp_path + '/tmp.gtf', 'w') as f:
-        for e in exitrons:
-            for region in db.children(db[e['gene_id']], order_by = 'start'):
-                f.write(str(region) + '\n')
-
-    # run liqa to create refgene
-    subprocess.run(['liqa',
-                    '-task',
-                    'refgene',
-                    '-ref',
-                    f'{tmp_path + "/tmp.gtf"}',
-                    '-format',
-                    'gtf',
-                    '-out',
-                    f'{tmp_path + "/tmp.refgene"}'])
-
-    # run liqa to quantify isoform expression
-    jitter = 10 #TODO make this an argument
-    subprocess.run(['liqa',
-                    '-task',
-                    'quantify',
-                    '-refgene',
-                    f'{tmp_path + "/tmp.refgene"}',
-                    '-bam',
-                    f'{tmp_path + "/e_tmp_sorted.bam"}',
-                    '-out',
-                    f'{tmp_path + "/isoform_estimates.out"}', #TODO maybe it's worth it to keep this file
-                    '-max_distance',
-                    f'{jitter}',
-                    '-f_weight',
-                    '0'])
-
-    ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
-    for e in exitrons:
-        gene = e['gene_name']
-        ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
-        transcripts = list(ie_slice[ie_slice['RelativeAbundance'] > 0.1]['IsoformName'])
-        try:
-            if not transcripts: transcripts = list(ie_slice[ie_slice['RelativeAbundance'] == max(ie_slice['RelativeAbundance'])]['IsoformName'])
-        except ValueError:
-            # transcript could not be measured by liqa
-            e['transcript_id'] += ',NA' # revert back to default transcript_id
-            continue
-        t_str = ''
-        for t in transcripts:
-            t_str += f'{t},{round(float(ie_slice[ie_slice["IsoformName"] == t]["RelativeAbundance"]), 4)};'
-        e['transcript_id'] = t_str[:-1] # leave off trailing ;
-
-    return exitrons
-    """
-    Outline:
-        first we need to construct a tmp.refgene with all the exitron spliced genes
-        second we need to construct a bamfile with all the exitron spliced reads
-        third we need to run liqa
-
-    Making the new bamfile:
-        bamfile = pysam.AlignmentFile(bamfile_fn, 'rb')
-        newfile = pysam.AlignmentFile('data/tmp.bam', 'w', template = samfile)
-        for e in exitrons:
-            # pileup on the exitron region
-            # find reads with exitron
-            newfile.write(reads)
-
-    creating tmp.refgene:
-
-        with open('tmp.gtf', 'w') as f:
-            for region in db.children(db[gene], order_by = 'start'):
-                f.write(str(region) + '\n')
-
-        liqa -task refgene -ref tmp.gtf -format gtf -out tmp.refgene
-        use : subprocess.run(["ls", "-l"])
-
-    """
 
 # seq, start_codon_pos, stop_codon_pos, exitron_pos, after_start_codon = get_gene_exitron_seq(exitron)
 # seq_full = get_gene_seq(exitron)
@@ -401,11 +319,35 @@ def identify_transcripts(exitrons, db, bamfile, tmp_path):
 # for exitron in read_exitron_file('data/test.exitron'):
 #     print(categorize_exitron(exitron, bamfile))
 
+def get_pfam_domains(exitron, prot_df):
+    df_gene = prot_df[prot_df['Gene stable ID version'] == exitron['gene_id']]
+    if exitron['type'][:9] == 'truncated':
+        e_start = int(exitron['exitron_prot_position'])
+        e_end = e_start + int(exitron['length'])//3
+        pf_ids = df_gene[(df_gene['Pfam start'] > e_start) & (df_gene['Pfam start'] < e_end)]
+        pf_ids = set(pf_ids['Pfam ID'])
+        if pf_ids:
+            exitron['prot_domains'] = ','.join(pf_ids)
+        else:
+            exitron['prot_domains'] = '.'
+    elif exitron['type'] == 'frameshift':
+        e_start = int(exitron['exitron_prot_position'])
+        pf_ids = df_gene[(df_gene['Pfam start'] > e_start)]
+        pf_ids = set(pf_ids['Pfam ID'])
+        if pf_ids:
+            exitron['prot_domains'] = ','.join(pf_ids)
+        else:
+            exitron['prot_domains'] = '.'
+
+
+#=============================================================================
+# Main
+#=============================================================================
+
 
 def main(tmp_path):
     # Get arguments
     args = parse_args()
-    # genome_ref, annotation_ref = config_getter('config.ini') # no longer using config.ini
 
     # Check to see if bamfile can be opened and there is an index.
     if args.bam_file:
@@ -436,29 +378,49 @@ def main(tmp_path):
                   'end',
                   'name',
                   'region',
+                  'ao',
                   'strand',
                   'gene_name',
                   'gene_id',
                   'length',
+                  'splice_site',
                   'transcript_id',
+                  'pso',
+                  'dp',
+                  'conf',
                   'exitron_prot_position',
                   'type',
                   'substitution',
                   'nmd_status_predicted',
                   'nmd_status_read_percentage',
                   'downstream_inframe_AUG',
-                  'start_proximal_PTC']
+                  'start_proximal_PTC',
+                  'prot_domains',
+                  'reads']
         for column in header:
             out.write(column + '\t')
         out.write('\n')
+        prot_df = pd.read_csv(args.prot_domains, delimiter='\t')
         exitrons = read_exitron_file(args.input)
-        identify_transcripts(exitrons, db, bamfile, tmp_path)
         for exitron in exitrons:
+            transcripts = exitron['transcript_id'].split(';')
+            for transcript in transcripts:
+                t_id = transcript.split(',')[0]
+                abundance = transcript.split(',')[1]
+                # dna / prot seq output not yet implemented
+                res, _, _= categorize_exitron(exitron.copy(), t_id, bamfile, db, args.genome_ref)
 
-            categorize_exitron(exitron, bamfile, db, args.genome_ref)
-            for column in header:
-                out.write(str(exitron[column]) + '\t')
-            out.write('\n')
+                # idetnify pfam domains
+                if res['exitron_prot_position'] != 'NA':
+                    get_pfam_domains(res, prot_df)
+                else:
+                    res['prot_domains'] = 'NA'
+
+                # update abundance
+                res['transcript_id'] += f',{abundance}'
+                for column in header:
+                    out.write(str(res[column]) + '\t')
+                out.write('\n')
 
 
 if __name__ == '__main__':

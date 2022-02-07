@@ -12,7 +12,10 @@ import os
 import argparse
 import pysam
 import pybedtools
+import subprocess
+import gffutils
 import multiprocessing as mp
+import pandas as pd
 # mp.set_start_method("spawn")
 from shutil import rmtree
 # from statistics import median
@@ -458,13 +461,11 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
 
             pso = ao/((a + b + c - ao*3)/3.0 + ao)
-            psi = 1 - pso
             dp = int(ao/pso) if pso > 0 else 0
 
             # Check whether attributes exceed minimum values
             if pso >= pso_min:
-                consensus_e['pso'] = pso
-                consensus_e['psi'] = psi
+                consensus_e['pso'] = round(pso, ndigits = 4)
                 consensus_e['dp'] = dp
                 consensus_e['reads'] = ','.join(reads[(consensus_e['start'],
                                                        consensus_e['end'] - 1,
@@ -525,6 +526,78 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
     #         meta_data['low_pso'].append(exitron)
     return res, meta_data
 
+def identify_transcripts(exitrons, db, bamfilename, tmp_path):
+    bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
+    # construct new bamfile
+    tmp_bamfile_exitrons = pysam.AlignmentFile(tmp_path + '/e_tmp.bam', 'wb', template = bamfile)
+    # TODO: perhaps do differential quantification.
+    # tmp_bamfile_normals = pysam.AlignmentFile(tmp_path + '/tmp.bam', 'wb', template = bamfile)
+    for e in exitrons:
+        e_reads = e['reads'].split(',')
+        # fetch reads at exitron junction
+        for read in bamfile.fetch(e['chrom'], start = int(e['start']), stop = int(e['end'])):
+            if read.query_name in e_reads:
+                tmp_bamfile_exitrons.write(read)
+            # else:
+                # tmp_bamfile_normals.write(read)
+    tmp_bamfile_exitrons.close()
+    # tmp_bamfile_normals.close()
+    bamfile.close()
+
+    pysam.sort('-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
+    # pysam.sort('-o', tmp_path + '/tmp_sorted.bam', tmp_path + '/tmp.bam')
+    pysam.index(tmp_path + '/e_tmp_sorted.bam')
+    # pysam.index(tmp_path + '/tmp_sorted.bam')
+
+    # build a small gtf file of only thoes exitron spliced genes
+    with open(tmp_path + '/tmp.gtf', 'w') as f:
+        for e in exitrons:
+            for region in db.children(db[e['gene_id']], order_by = 'start'):
+                f.write(str(region) + '\n')
+
+    # run liqa to create refgene
+    subprocess.run(['liqa',
+                    '-task',
+                    'refgene',
+                    '-ref',
+                    f'{tmp_path + "/tmp.gtf"}',
+                    '-format',
+                    'gtf',
+                    '-out',
+                    f'{tmp_path + "/tmp.refgene"}'])
+
+    # run liqa to quantify isoform expression
+    jitter = 10 #TODO make this an argument
+    subprocess.run(['liqa',
+                    '-task',
+                    'quantify',
+                    '-refgene',
+                    f'{tmp_path + "/tmp.refgene"}',
+                    '-bam',
+                    f'{tmp_path + "/e_tmp_sorted.bam"}',
+                    '-out',
+                    f'{tmp_path + "/isoform_estimates.out"}', #TODO maybe it's worth it to keep this file
+                    '-max_distance',
+                    f'{jitter}',
+                    '-f_weight',
+                    '0'])
+
+    ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
+    for e in exitrons:
+        gene = e['gene_name']
+        ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
+        transcripts = list(ie_slice[ie_slice['RelativeAbundance'] > 0.1]['IsoformName'])
+        try:
+            if not transcripts: transcripts = list(ie_slice[ie_slice['RelativeAbundance'] == max(ie_slice['RelativeAbundance'])]['IsoformName'])
+        except ValueError:
+            # transcript could not be measured by liqa
+            e['transcript_id'] += ',NA' # revert back to default transcript_id
+            continue
+        t_str = ''
+        for t in transcripts:
+            t_str += f'{t},{round(float(ie_slice[ie_slice["IsoformName"] == t]["RelativeAbundance"]), 4)};'
+        e['transcript_id'] = t_str[:-1] # leave off trailing ;
+    return exitrons
 
 
 # for reference, here is the short read version:
@@ -726,6 +799,18 @@ def main(tmp_path):
             print(f'There is a problem opening bam file at: {args.input}')
     bamfile.close()
 
+    # prepage gffutils database
+    try:
+        print('Preparing annotation database...')
+        db = gffutils.create_db(args.annotation_ref,
+                                dbfn = args.annotation_ref + '.db',
+                                disable_infer_genes = True,
+                                disable_infer_transcripts = True)
+        db = gffutils.FeatureDB(args.annotation_ref + '.db')
+    except:
+        print(f'Using annotation databse {args.annotation_ref + ".db"}')
+        db = gffutils.FeatureDB(args.annotation_ref + '.db')
+
     # Begin exitron calling
     global results
     global meta_data_out
@@ -772,6 +857,13 @@ def main(tmp_path):
                                         args.verbose,
                                         args.stranded)
             collect_result(output)
+    exitrons = []
+    for chrm in results:
+        exitrons.extend(results[chrm])
+    print('Quantifying transcripts.')
+    sys.stdout.flush()
+    # update transcripts
+    identify_transcripts(exitrons, db, args.input, tmp_path)
 
     out_file_name = args.out
     if not out_file_name:
@@ -793,34 +885,18 @@ def main(tmp_path):
                   'splice_site',
                   'transcript_id',
                   'pso',
-                  'psi',
                   'dp',
                   'conf',
                   'reads']
-        if args.verbose:
-            header = header + ['splice_motif',
-                                   'left_anchor_length',
-                                   'right_anchor_length',
-                                   'left_anchor_alignment_score',
-                                   'right_anchor_alignment_score',
-                                   'left_10bp_alignment_score',
-                                   'right_10bp_alignment_score']
         #write header
         for column in header:
             out.write(column + '\t')
         out.write('\n')
-        for chrm in chrms:
+        for exitron in exitrons:
             #check if chromosome is empty or not
-            try:
-                if results[chrm]:
-                    for exitron in results[chrm]:
-                        for column in header:
-                            out.write(str(exitron[column]) + '\t')
-                        out.write('\n')
-            except KeyError:
-                print(f'Thread most likely crashed on chromosome \'{chrm}\' without reporting exception.  Try fewer cores or allocate more memory.')
-                sys.stdout.flush()
-                sys.exit(1)
+            for column in header:
+                out.write(str(exitron[column]) + '\t')
+            out.write('\n')
 
     if args.meta_data:
         with open(args.meta_data, 'w') as out:
