@@ -447,7 +447,7 @@ if __name__ == '__main__':
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")
         else:
-            traceback.print_stack()
+            traceback.print_tb(e.__traceback__)
         pybedtools.helpers.cleanup(remove_all=True)
         rmtree(tmp_path)
         sys.exit(1)
