@@ -185,7 +185,13 @@ def get_gene_exitron_seq(exitron, db, genome_fn):
             stop_codon_pos = len(seq) + stop_codon.start - exon.start
         if exon.start < e_start < exon.end and exon.start < e_end < exon.end:
             cds_seq = exon.sequence(genome_fn).upper() if strand == '+' else str(Seq(exon.sequence(genome_fn).upper()).reverse_complement())
-            exitron_pos = len(seq) + e_start - exon.start - start_codon_pos if strand == '+' else len(seq) + e_start - exon.start - stop_codon_pos
+            try:
+                exitron_pos = len(seq) + e_start - exon.start - start_codon_pos if strand == '+' else len(seq) + e_start - exon.start - stop_codon_pos
+            except UnboundLocalError:
+                # occurs when neither stop nor start codon was encountered before exitron
+                # this can happen if the inferred transcript is one where the
+                # exitron is actually located in a UTR region instead of CDS
+                return None, None, None, None, None, None, None
             seq += cds_seq[:e_start - exon.start + 1] + cds_seq[e_end - exon.start:]
             seq_pos.extend([*range(exon.start, e_start + 1)])
             seq_pos.extend([*range(e_end, exon.end + 1)])
