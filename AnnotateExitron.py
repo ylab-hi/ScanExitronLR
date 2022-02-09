@@ -13,6 +13,7 @@ import gffutils
 import pysam
 import argparse
 import subprocess
+import traceback
 import pandas as pd
 from Bio.Seq import Seq
 from shutil import rmtree
@@ -446,7 +447,7 @@ if __name__ == '__main__':
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")
         else:
-            sys.stderr.write(str(e))
+            traceback.print_stack()
         pybedtools.helpers.cleanup(remove_all=True)
         rmtree(tmp_path)
         sys.exit(1)
