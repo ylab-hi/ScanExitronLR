@@ -439,7 +439,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             try:
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
                                   key = lambda e: e['ao'])
-                tot_ao = sum(e['ao'] for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC'])
+                tot_ao = sum(e['ao'] for e in group)
                 consensus_e['conf'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
                 consensus_e['ao'] = tot_ao
             except ValueError:
@@ -800,7 +800,7 @@ def main(tmp_path):
     bamfile.close()
 
     try:
-        subprocess.run(['liqa'])
+        subprocess.run(['liqa'], capture_output = True)
     except FileNotFoundError:
         print('ERROR: unable to locate LIQA. Please install with "pip install liqa"')
 
