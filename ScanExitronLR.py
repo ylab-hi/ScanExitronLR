@@ -14,16 +14,14 @@ import pysam
 import pybedtools
 import subprocess
 import gffutils
+import re
 import multiprocessing as mp
 import pandas as pd
 # mp.set_start_method("spawn")
 from shutil import rmtree
 # from statistics import median
-# from configparser import ConfigParser
-# from Bio import pairwise2
+from Bio import pairwise2
 from collections import Counter, defaultdict
-
-
 
 #===============================================================================
 # Helper Methods
@@ -346,7 +344,7 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
 
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
+def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
     """
     Parameters
     ----------
@@ -425,7 +423,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
         for group in groups[strand]:
             if not group:
                 continue # no exitrons found in this strand
-            # calculate canonical spice sites, calculate centers, re-align.
+            # calculate canonical spice sites and append read names.
             for e in group:
                 start = e['start']
                 end = e['end']
@@ -442,6 +440,12 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
                 tot_ao = sum(e['ao'] for e in group)
                 consensus_e['conf'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
                 consensus_e['ao'] = tot_ao
+                consensus_reads = ''
+                for e in group:
+                    consensus_reads += ',' + ','.join(reads[(e['start'],
+                                                           e['end'] - 1,
+                                                           e['strand'])])
+                consensus_e['reads'] = consensus_reads
             except ValueError:
                 continue # this occurs when there are no cannonical splice sites within the group
 
@@ -467,15 +471,57 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
             if pso >= pso_min:
                 consensus_e['pso'] = round(pso, ndigits = 4)
                 consensus_e['dp'] = dp
-                consensus_e['reads'] = ','.join(reads[(consensus_e['start'],
-                                                       consensus_e['end'] - 1,
-                                                       consensus_e['strand'])])
                 res.append(consensus_e)
             else:
                 meta_data['low_pso'].append(consensus_e)
 
+    # realign
+    print(f'Realigning exitrons')
+    for exitron in res:
+        e_start = exitron['start']
+        e_end = exitron['end']
+        chrm = exitron['chrom']
+        e_length = exitron['length']
+
+        for exon in db.children(db[exitron['transcript_id']], featuretype = 'exon', order_by = 'start'):
+            if exon.start <= e_start <= exon.end:
+                exon_start = exon.start
+                exon_end = exon.end
+                break
 
 
+        for read in bamfile.fetch(chrm, e_start, e_end):
+            if read.query_name in exitron['reads']:
+                continue
+            if (any([max(0, min(exon_end, i[1]) - max(exon_start, i[0])) > 0
+                    for i in bamfile.find_introns([read]).keys()])):
+                pos = [p for p in read.get_aligned_pairs() if (p[1] != None and exon_start <= p[1] <= exon_end)]
+
+                start = min(p[0] for p in pos if p[0] != None)
+                end = max(p[0] for p in pos if p[0] != None)
+
+                # TODO: require MD tag, so that we can get the genome seq faster
+                # this also means we don't need to fish for the strand match.
+                g_seq = genome[chrm][exon_start - 1:exon_end]
+                r_seq = read.seq[start:end]
+
+                exitron_seq = genome[chrm][e_start-2:e_end - 1 + 2]
+
+                left = exitron_seq[:2]
+                right = exitron_seq[-2:]
+                exitron_seq = exitron_seq[2:-2]
+                alignment = pairwise2.align.localms(g_seq, r_seq, 2, -1, -2, 0)[:10]
+
+                # test to make sure exitron does not occur around the exon
+                # lower than 0.7
+                similarity = pairwise2.align.localms(read.seq[start-e_length:end+e_length], exitron_seq, 2, -1, -2, -1, score_only = True)
+                similarity = similarity/(e_length*2)
+
+                if similarity <= 0.7 and \
+                    (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 <= aln.seqB.count('-') <= e_length + 10) for aln in alignment[:10]) or
+                     any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 <= aln.seqB.count('-') <= e_length + 10) for aln in alignment[:10])):
+                        exitron['reads'] += f',{read.query_name}'
+                        exitron['ao'] += 1
 
     # for group in groups['-']:
     #     if not group:
@@ -525,6 +571,24 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq =
     #     else:
     #         meta_data['low_pso'].append(exitron)
     return res, meta_data
+
+def exitron_realignment(exitrons, bamfile):
+    """
+
+
+    Parameters
+    ----------
+    exitrons : list
+        list of exitrons.
+
+    Returns
+    -------
+    list of exitrons with possible additions to ao.
+
+    """
+    for exitron in exitrons:
+        transcript = exitron['transcript_id'].split(';')
+
 
 def identify_transcripts(exitrons, db, bamfilename, tmp_path):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
@@ -748,7 +812,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, verbose, stranded):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, verbose, stranded, db):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -767,6 +831,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                     genome,
                     meta_data,
                     verbose,
+                    db,
                     mapq,
                     pso_min,
                     ao_min)
@@ -844,7 +909,8 @@ def main(tmp_path):
                                                         args.pso_min,
                                                         args.ao_min,
                                                         args.verbose,
-                                                        args.stranded), callback = collect_result))
+                                                        args.stranded,
+                                                        db), callback = collect_result))
         pool.close()
         for t in threads:
             t.get() # this gets any exceptions raised
@@ -860,7 +926,8 @@ def main(tmp_path):
                                         args.pso_min,
                                         args.ao_min,
                                         args.verbose,
-                                        args.stranded)
+                                        args.stranded,
+                                        db)
             collect_result(output)
     exitrons = []
     for chrm in results:
