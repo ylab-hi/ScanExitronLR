@@ -519,10 +519,11 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, ma
                 start = min(p[0] for p in pos if p[0] != None)
                 end = max(p[0] for p in pos if p[0] != None)
 
+                r_seq = read.seq[start:end]
+                if not r_seq: continue
                 # TODO: require MD tag, so that we can get the genome seq faster
                 # this also means we don't need to fish for the strand match.
                 g_seq = genome[chrm][exon_start - 1:exon_end]
-                r_seq = read.seq[start:end]
 
                 exitron_seq = genome[chrm][e_start-2:e_end - 1 + 2]
 
@@ -534,7 +535,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, ma
                 # test to make sure exitron does not occur around the exon
                 # lower than 0.7
                 similarity = pairwise2.align.localms(read.seq[start-e_length:end+e_length], exitron_seq, 2, -1, -2, -1, score_only = True)
-                similarity = similarity/(e_length*2)
+                similarity = similarity/(e_length*2) if similarity else 1 # if no alignment, just continue
 
                 if similarity <= 0.7 and \
                     (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 <= aln.seqB.count('-') <= e_length + 10) for aln in alignment[:10]) or
