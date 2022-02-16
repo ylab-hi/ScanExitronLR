@@ -83,6 +83,14 @@ def parse_args():
         help="Consider only reads with MAPQ >= cutoff (default: %(default)s)",
         default=50)
     parser.add_argument(
+        '-j',
+        '--jitter',
+        action='store',
+        dest='jitter',
+        type=int,
+        help="Exitrons with splice sites +/- jitter away will be counted as a single splicing event.  (default: %(default)s)",
+        default=10)
+    parser.add_argument(
         "-a",
         "--ao",
         action="store",
@@ -237,7 +245,7 @@ def find_introns(read_iterator, stranded):
     return introns, reads, meta_data
 
 
-def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
+def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50, jitter = 10):
     """
 
 
@@ -255,7 +263,7 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
 
     """
     # add jitter.  This will later be a parameter
-    jitter = 10
+    # jitter = 10
 
     intron_bed = []
 
@@ -285,6 +293,9 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
     exitrons = []
     exitrons_added = []
     known_splices = set()
+    t_start,t_end = [], []
+    d = defaultdict(list)
+    a = defaultdict(list)
 
     for feature in intersection:
         # Check for intron within coding exon.
@@ -298,15 +309,21 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
         intron_end = int(feature.fields[11])
         intron_witnesses = int(feature.fields[12])
 
+
+        if region_type == 'transcript':
+            t_start.append(feature.start)
+            t_end.append(feature.end)
+
         # Use the ends to check for known donors or acceptors
         if region_type == 'exon':
             if intron_start in range(region_end - jitter*2, region_end + 1):
                 # intron matches a known donor
                 known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D'))
+                d[(feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1)].append(region_end)
             if intron_end in range(region_start, region_start + 1 + jitter*2):
                 # intron matches a known acceptor
                 known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A'))
-
+                a[(feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1)].append(region_start)
 
         elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
             and region_end > intron_end - 1 - jitter:
@@ -337,8 +354,10 @@ def exitron_caller(bamfile, referencename, chrm, stranded = 'no', mapq = 50):
 
     del intersection
 
-    return ([exitron for exitron in exitrons if ((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices
-                                                 and (exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices)],
+    return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices or
+                                                 all(x in t_end for x in d[(exitron['chrom'], exitron['start'], exitron['end'])])) and
+                                                 ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices or
+                                                 all(x in t_start for x in a[(exitron['chrom'], exitron['start'], exitron['end'])])))],
             reads,
             meta_data)
 
@@ -812,7 +831,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, verbose, stranded, db):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded, db):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -822,8 +841,10 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
     exitrons, reads, meta_data  = exitron_caller(bamfile,
                               referencename,
                               chrm,
+                              db,
                               stranded,
-                              mapq)
+                              mapq,
+                              jitter)
     genome = pysam.FastaFile(genomename)
     exitrons, meta_data = filter_exitrons(exitrons,
                     reads,
@@ -908,6 +929,7 @@ def main(tmp_path):
                                                         args.mapq,
                                                         args.pso_min,
                                                         args.ao_min,
+                                                        args.jitter,
                                                         args.verbose,
                                                         args.stranded,
                                                         db), callback = collect_result))
@@ -925,6 +947,7 @@ def main(tmp_path):
                                         args.mapq,
                                         args.pso_min,
                                         args.ao_min,
+                                        args.jitter,
                                         args.verbose,
                                         args.stranded,
                                         db)
