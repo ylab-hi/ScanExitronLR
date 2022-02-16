@@ -293,9 +293,6 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
     exitrons = []
     exitrons_added = []
     known_splices = set()
-    t_start,t_end = [], []
-    d = defaultdict(list)
-    a = defaultdict(list)
 
     for feature in intersection:
         # Check for intron within coding exon.
@@ -309,21 +306,16 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
         intron_end = int(feature.fields[11])
         intron_witnesses = int(feature.fields[12])
 
-
-        if region_type == 'transcript':
-            t_start.append(feature.start)
-            t_end.append(feature.end)
-
         # Use the ends to check for known donors or acceptors
         if region_type == 'exon':
-            if intron_start in range(region_end - jitter*2, region_end + 1):
+            if intron_start in range(region_end - jitter*2, region_end + 1) and \
+                feature.end != db[feature.attrs['transcript_id']].end:
                 # intron matches a known donor
                 known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D'))
-                d[(feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1)].append(region_end)
-            if intron_end in range(region_start, region_start + 1 + jitter*2):
+            if intron_end in range(region_start, region_start + 1 + jitter*2) and \
+                feature.start + 1 != db[feature.attrs['transcript_id']].start:
                 # intron matches a known acceptor
                 known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A'))
-                a[(feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1)].append(region_start)
 
         elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
             and region_end > intron_end - 1 - jitter:
@@ -354,10 +346,8 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
 
     del intersection
 
-    return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices or
-                                                 all(x in t_end for x in d[(exitron['chrom'], exitron['start'], exitron['end'])])) and
-                                                 ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices or
-                                                 all(x in t_start for x in a[(exitron['chrom'], exitron['start'], exitron['end'])])))],
+    return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices and
+                                                 ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices)))],
             reads,
             meta_data)
 
@@ -530,7 +520,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, ma
                 left = exitron_seq[:2]
                 right = exitron_seq[-2:]
                 exitron_seq = exitron_seq[2:-2]
-                alignment = pairwise2.align.localms(g_seq, r_seq, 2, -1, -2, 0)[:10]
+                alignment = pairwise2.align.localms(g_seq, r_seq, 4, -2, -2, 0)[:10]
 
                 # test to make sure exitron does not occur around the exon
                 # lower than 0.7
@@ -538,8 +528,8 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, ma
                 similarity = similarity/(e_length*2) if similarity else 1 # if no alignment, just continue
 
                 if similarity <= 0.7 and \
-                    (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 <= aln.seqB.count('-') <= e_length + 10) for aln in alignment[:10]) or
-                     any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 <= aln.seqB.count('-') <= e_length + 10) for aln in alignment[:10])):
+                    (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10]) or
+                     any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10])):
                         exitron['reads'] += f',{read.query_name}'
                         exitron['ao'] += 1
 
@@ -832,13 +822,14 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded, db):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded):
     """
     Wrapper that calls main functions *per chromosome*.
     """
     print(f'Finding exitrons in {chrm}')
     sys.stdout.flush()
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
+    db = gffutils.FeatureDB(referencename + '.db')
     exitrons, reads, meta_data  = exitron_caller(bamfile,
                               referencename,
                               chrm,
@@ -859,6 +850,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                     ao_min)
     genome.close()
     bamfile.close()
+    del db
 
     return exitrons, meta_data, chrm
 
@@ -932,8 +924,7 @@ def main(tmp_path):
                                                         args.ao_min,
                                                         args.jitter,
                                                         args.verbose,
-                                                        args.stranded,
-                                                        db), callback = collect_result))
+                                                        args.stranded), callback = collect_result))
         pool.close()
         for t in threads:
             t.get() # this gets any exceptions raised
@@ -950,8 +941,7 @@ def main(tmp_path):
                                         args.ao_min,
                                         args.jitter,
                                         args.verbose,
-                                        args.stranded,
-                                        db)
+                                        args.stranded)
             collect_result(output)
     exitrons = []
     for chrm in results:
