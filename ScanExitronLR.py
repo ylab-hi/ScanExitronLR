@@ -505,9 +505,11 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, ma
             if (any([max(0, min(exon_end, i[1]) - max(exon_start, i[0])) > 0
                     for i in bamfile.find_introns([read]).keys()])):
                 pos = [p for p in read.get_aligned_pairs() if (p[1] != None and exon_start <= p[1] <= exon_end)]
-
-                start = min(p[0] for p in pos if p[0] != None)
-                end = max(p[0] for p in pos if p[0] != None)
+                try:
+                    start = min(p[0] for p in pos if p[0] != None)
+                    end = max(p[0] for p in pos if p[0] != None)
+                except:
+                    continue
 
                 r_seq = read.seq[start:end]
                 if not r_seq: continue
