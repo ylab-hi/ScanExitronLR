@@ -15,6 +15,7 @@ import pybedtools
 import subprocess
 import gffutils
 import re
+import traceback
 import multiprocessing as mp
 import pandas as pd
 # mp.set_start_method("spawn")
@@ -109,13 +110,13 @@ def parse_args():
         default=0.005,
     )
     parser.add_argument(
-        "-al",
-        "--anchor_length",
+        "-ra",
+        "--realign",
         action="store",
-        dest="anchor_min",
+        dest="realign",
         type=int,
-        help="Minimum anchor length (default: %(default)s",
-        default=5,
+        help="If specified, candidate misaligned exitrons will be realigned. (default: %(default)s",
+        default=True,
     )
     parser.add_argument(
         "-vb",
@@ -353,7 +354,7 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
 
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
+def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, realign, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
     """
     Parameters
     ----------
@@ -486,54 +487,55 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, ma
 
     # realign
     print(f'Realigning exitrons')
-    for exitron in res:
-        e_start = exitron['start']
-        e_end = exitron['end']
-        chrm = exitron['chrom']
-        e_length = exitron['length']
+    if realign:
+        for exitron in res:
+            e_start = exitron['start']
+            e_end = exitron['end']
+            chrm = exitron['chrom']
+            e_length = exitron['length']
 
-        for exon in db.children(db[exitron['transcript_id']], featuretype = 'exon', order_by = 'start'):
-            if exon.start <= e_start <= exon.end:
-                exon_start = exon.start
-                exon_end = exon.end
-                break
+            for exon in db.children(db[exitron['transcript_id']], featuretype = 'exon', order_by = 'start'):
+                if exon.start <= e_start <= exon.end:
+                    exon_start = exon.start
+                    exon_end = exon.end
+                    break
 
 
-        for read in bamfile.fetch(chrm, e_start, e_end):
-            if read.query_name in exitron['reads']:
-                continue
-            if (any([max(0, min(exon_end, i[1]) - max(exon_start, i[0])) > 0
-                    for i in bamfile.find_introns([read]).keys()])):
-                pos = [p for p in read.get_aligned_pairs() if (p[1] != None and exon_start <= p[1] <= exon_end)]
-                try:
-                    start = min(p[0] for p in pos if p[0] != None)
-                    end = max(p[0] for p in pos if p[0] != None)
-                except:
+            for read in bamfile.fetch(chrm, e_start, e_end):
+                if read.query_name in exitron['reads']:
                     continue
+                if (any([max(0, min(exon_end, i[1]) - max(exon_start, i[0])) > 0
+                        for i in bamfile.find_introns([read]).keys()])):
+                    pos = [p for p in read.get_aligned_pairs() if (p[1] != None and exon_start <= p[1] <= exon_end)]
+                    try:
+                        start = min(p[0] for p in pos if p[0] != None)
+                        end = max(p[0] for p in pos if p[0] != None)
+                    except:
+                        continue # no nt overlap with exon
 
-                r_seq = read.seq[start:end]
-                if not r_seq: continue
-                # TODO: require MD tag, so that we can get the genome seq faster
-                # this also means we don't need to fish for the strand match.
-                g_seq = genome[chrm][exon_start - 1:exon_end]
+                    r_seq = read.seq[start:end]
+                    if not r_seq: continue
+                    # TODO: require MD tag, so that we can get the genome seq faster
+                    # this also means we don't need to fish for the strand match.
+                    g_seq = genome[chrm][exon_start - 1:exon_end]
 
-                exitron_seq = genome[chrm][e_start-2:e_end - 1 + 2]
+                    exitron_seq = genome[chrm][e_start-2:e_end - 1 + 2]
 
-                left = exitron_seq[:2]
-                right = exitron_seq[-2:]
-                exitron_seq = exitron_seq[2:-2]
-                alignment = pairwise2.align.localms(g_seq, r_seq, 4, -2, -2, 0)[:10]
+                    left = exitron_seq[:2]
+                    right = exitron_seq[-2:]
+                    exitron_seq = exitron_seq[2:-2]
+                    alignment = pairwise2.align.localms(g_seq, r_seq, 4, -2, -2, 0)[:10]
 
-                # test to make sure exitron does not occur around the exon
-                # lower than 0.7
-                similarity = pairwise2.align.localms(read.seq[start-e_length:end+e_length], exitron_seq, 2, -1, -2, -1, score_only = True)
-                similarity = similarity/(e_length*2) if similarity else 1 # if no alignment, just continue
+                    # test to make sure exitron does not occur around the exon
+                    # lower than 0.7
+                    similarity = pairwise2.align.localms(read.seq[start-e_length:end+e_length], exitron_seq, 2, -1, -2, -1, score_only = True)
+                    similarity = similarity/(e_length*2) if similarity else 1 # if no alignment, just continue
 
-                if similarity <= 0.7 and \
-                    (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10]) or
-                     any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10])):
-                        exitron['reads'] += f',{read.query_name}'
-                        exitron['ao'] += 1
+                    if similarity <= 0.7 and \
+                        (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10]) or
+                         any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10])):
+                            exitron['reads'] += f',{read.query_name}'
+                            exitron['ao'] += 1
 
     # for group in groups['-']:
     #     if not group:
@@ -824,7 +826,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded, realign):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -847,6 +849,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                     meta_data,
                     verbose,
                     db,
+                    realign,
                     mapq,
                     pso_min,
                     ao_min)
@@ -926,7 +929,8 @@ def main(tmp_path):
                                                         args.ao_min,
                                                         args.jitter,
                                                         args.verbose,
-                                                        args.stranded), callback = collect_result))
+                                                        args.stranded,
+                                                        args.realign), callback = collect_result))
         pool.close()
         for t in threads:
             t.get() # this gets any exceptions raised
@@ -943,7 +947,8 @@ def main(tmp_path):
                                         args.ao_min,
                                         args.jitter,
                                         args.verbose,
-                                        args.stranded)
+                                        args.stranded,
+                                        args.realign)
             collect_result(output)
     exitrons = []
     for chrm in results:
@@ -1022,7 +1027,7 @@ if __name__ == '__main__':
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")
         else:
-            sys.stderr.write(str(e))
+            traceback.print_tb(e.__traceback__)
         pybedtools.helpers.cleanup(remove_all=True)
         rmtree(tmp_path)
         sys.exit(1)
