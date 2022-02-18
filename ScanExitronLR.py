@@ -158,7 +158,9 @@ def parse_args():
 
     # reverse_chrms_dict = dict((chrms_dict[i], i) for i in chrms_dict)
 
-
+tab = str.maketrans("ACTG", "TGAC")
+def rc(seq):
+    return seq.translate(tab)[::-1]
 # No longer using config.ini
 
 # def config_getter(config_file='config.ini'):
@@ -441,8 +443,8 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, re
                 if strand == '+':
                     e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
                 elif strand == '-':
-                    right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
-                    left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
+                    right = rc(genome_seq[:2])
+                    left = rc(genome_seq[-2:])
                     e['splice_site'] = left + '-' + right
             try:
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
@@ -515,11 +517,10 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, re
 
                     r_seq = read.seq[start:end]
                     if not r_seq: continue
-                    # TODO: require MD tag, so that we can get the genome seq faster
-                    # this also means we don't need to fish for the strand match.
-                    g_seq = genome[chrm][exon_start - 1:exon_end]
+                    # exon.sequence(-) is much faster than using pysam FastaFile
+                    g_seq = exon.sequence(genome.filename.decode()) if exon.strand == '+' else rc(exon.sequence(genome.filename.decode()))
 
-                    exitron_seq = genome[chrm][e_start-2:e_end - 1 + 2]
+                    exitron_seq = g_seq[e_start - exon.start + 1: e_end - exon.start]
 
                     left = exitron_seq[:2]
                     right = exitron_seq[-2:]
