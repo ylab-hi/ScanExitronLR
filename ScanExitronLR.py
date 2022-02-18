@@ -213,7 +213,7 @@ def find_introns(read_iterator, stranded):
     meta_data = defaultdict(list)
     reads = defaultdict(list)
 
-    match_or_deletion = {0, 2, 7, 8} # only M/=/X (0/7/8) and D (2) are related to genome position
+    match = {0, 7, 9} # only M/=/X (0/7/8) and D (2) are related to genome position
     for r in read_iterator:
         base_position = r.pos
         read_position = 0
@@ -225,10 +225,10 @@ def find_introns(read_iterator, stranded):
             # if (0, X), keep track of base_position.
             # if (3, X), which corresponds to N,
             # look at match before and after
-            if tag in match_or_deletion:
+            if tag in match or (tag == 2 and nt < 30):
                 base_position += nt
                 read_position += nt
-            elif r.cigartuples[i][0] == BAM_CREF_SKIP:
+            elif tag == BAM_CREF_SKIP or (tag == 2 and nt >= 30):
                 junc_start = base_position
                 base_position += nt
                 if stranded == 'no':
@@ -517,10 +517,10 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, re
 
                     r_seq = read.seq[start:end]
                     if not r_seq: continue
-                    # exon.sequence(-) is much faster than using pysam FastaFile
+                    # exon.sequence(-) is much faster than using pysam Fast
                     g_seq = exon.sequence(genome.filename.decode()) if exon.strand == '+' else rc(exon.sequence(genome.filename.decode()))
 
-                    exitron_seq = g_seq[e_start - exon.start + 1: e_end - exon.start]
+                    exitron_seq = g_seq[e_start - exon.start + 1 - 2: e_end - exon.start + 2]
 
                     left = exitron_seq[:2]
                     right = exitron_seq[-2:]
