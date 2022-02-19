@@ -486,9 +486,10 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
             else:
                 meta_data['low_pso'].append(consensus_e)
 
-    # realign
-    print(f'Realigning exitrons in {res[0]["chrom"]}')
-    if not skip_realign:
+
+    if not skip_realign and res:
+        # realign
+        print(f'Realigning exitrons in {res[0]["chrom"]}')
         for exitron in res:
             e_start = exitron['start']
             e_end = exitron['end']
