@@ -402,7 +402,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
     """
     if not exitrons:
         return [], meta_data
-
+    jitter = jitter*2
     #Need to compute reverse complement for splice junctions.
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
     res = []
@@ -487,9 +487,11 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
                 meta_data['low_pso'].append(consensus_e)
 
 
+    # realignmnet may double count
     if not skip_realign and res:
         # realign
         print(f'Realigning exitrons in {res[0]["chrom"]}')
+        called_reads = ''.join(e['reads'] for e in res)
         for exitron in res:
             e_start = exitron['start']
             e_end = exitron['end']
@@ -504,7 +506,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
 
 
             for read in bamfile.fetch(chrm, e_start, e_end):
-                if read.query_name in exitron['reads']:
+                if read.query_name in called_reads:
                     continue
                 if (any([max(0, min(exon_end, i[1]) - max(exon_start, i[0])) > 0
                         for i in bamfile.find_introns([read]).keys()])):
@@ -537,6 +539,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
                          any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10])):
                             exitron['reads'] += f',{read.query_name}'
                             exitron['ao'] += 1
+                            called_reads += f',{read.query_name}'
 
     # for group in groups['-']:
     #     if not group:
