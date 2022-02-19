@@ -110,13 +110,12 @@ def parse_args():
         default=0.005,
     )
     parser.add_argument(
-        "-ra",
-        "--realign",
+        "-sr",
+        "--skip-realign",
         action="store",
-        dest="realign",
-        type=int,
-        help="If specified, candidate misaligned exitrons will be realigned. (default: %(default)s",
-        default=True,
+        dest="skip_realign",
+        help="If specified, candidate misaligned exitrons will be not be realigned. (default: %(default)s",
+        default=None,
     )
     parser.add_argument(
         "-vb",
@@ -356,7 +355,7 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
 
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, realign, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
+def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, skip_realign, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
     """
     Parameters
     ----------
@@ -488,8 +487,8 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, re
                 meta_data['low_pso'].append(consensus_e)
 
     # realign
-    print(f'Realigning exitrons')
-    if realign:
+    print(f'Realigning exitrons in {res[0]["chrom"]}')
+    if not skip_realign:
         for exitron in res:
             e_start = exitron['start']
             e_end = exitron['end']
@@ -827,7 +826,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded, realign):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded, skip_realign):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -850,7 +849,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                     meta_data,
                     verbose,
                     db,
-                    realign,
+                    skip_realign,
                     mapq,
                     pso_min,
                     ao_min)
@@ -931,7 +930,7 @@ def main(tmp_path):
                                                         args.jitter,
                                                         args.verbose,
                                                         args.stranded,
-                                                        args.realign), callback = collect_result))
+                                                        args.skip_realign), callback = collect_result))
         pool.close()
         for t in threads:
             t.get() # this gets any exceptions raised
@@ -949,7 +948,7 @@ def main(tmp_path):
                                         args.jitter,
                                         args.verbose,
                                         args.stranded,
-                                        args.realign)
+                                        args.skip_realign)
             collect_result(output)
     exitrons = []
     for chrm in results:
