@@ -448,7 +448,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
                                   key = lambda e: e['ao'])
                 tot_ao = sum(e['ao'] for e in group)
-                consensus_e['conf'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
+                consensus_e['consensus_prop'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
                 consensus_e['ao'] = tot_ao
                 consensus_reads = ''
                 for e in group:
