@@ -112,10 +112,9 @@ def parse_args():
     parser.add_argument(
         "-sr",
         "--skip-realign",
-        action="store",
+        action="store_true",
         dest="skip_realign",
-        help="If specified, candidate misaligned exitrons will be not be realigned. (default: %(default)s",
-        default=None,
+        help="If specified, candidate misaligned exitrons will be not be realigned. (default: %(default)s"
     )
     parser.add_argument(
         "-vb",
@@ -590,23 +589,6 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
     #         meta_data['low_pso'].append(exitron)
     return res, meta_data
 
-def exitron_realignment(exitrons, bamfile):
-    """
-
-
-    Parameters
-    ----------
-    exitrons : list
-        list of exitrons.
-
-    Returns
-    -------
-    list of exitrons with possible additions to ao.
-
-    """
-    for exitron in exitrons:
-        transcript = exitron['transcript_id'].split(';')
-
 
 def identify_transcripts(exitrons, db, bamfilename, tmp_path):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
@@ -984,7 +966,7 @@ def main(tmp_path):
                   'transcript_id',
                   'pso',
                   'dp',
-                  'conf',
+                  'consensus_prop',
                   'reads']
         #write header
         for column in header:
