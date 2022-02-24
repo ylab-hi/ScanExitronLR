@@ -516,7 +516,10 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
                     except:
                         continue # no nt overlap with exon
 
-                    r_seq = read.seq[start:end]
+                    try:
+                        r_seq = read.seq[start:end]
+                    except:
+                        continue # strangely, sometimes pysam returns None from read.seq
                     if not r_seq: continue
                     # exon.sequence(-) is much faster than using pysam Fast
                     g_seq = exon.sequence(genome.filename.decode()) if exon.strand == '+' else rc(exon.sequence(genome.filename.decode()))
