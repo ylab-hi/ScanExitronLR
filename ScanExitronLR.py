@@ -1007,13 +1007,14 @@ if __name__ == '__main__':
     try: os.mkdir(tmp_path)
     except FileExistsError: pass
     pybedtools.helpers.set_tempdir(tmp_path)
-    try:
-        main(tmp_path)
-    except Exception as e:
-        if e.__class__.__name__ == 'InterruptedError':
-            sys.stderr.write("User interrupt!")
-        else:
-            traceback.print_tb(e.__traceback__)
-        pybedtools.helpers.cleanup(remove_all=True)
-        rmtree(tmp_path)
-        sys.exit(1)
+    main(tmp_path)
+    # try:
+    #     main(tmp_path)
+    # except Exception as e:
+    #     if e.__class__.__name__ == 'InterruptedError':
+    #         sys.stderr.write("User interrupt!")
+    #     else:
+    #         traceback.print_tb(e.__traceback__)
+    #     pybedtools.helpers.cleanup(remove_all=True)
+    #     rmtree(tmp_path)
+    #     sys.exit(1)
