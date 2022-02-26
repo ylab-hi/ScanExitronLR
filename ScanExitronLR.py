@@ -276,7 +276,8 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
     for start, stop, strand in introns:
         #-1 and +2 so that we can capture the ends and beginning of adjacent transcripts
         #this allows us to determine whether there is a known donor or acceptor site
-        intron_bed.append((chrm, start - 1 - jitter, stop + 1 + jitter + 1, introns[(start, stop, strand)], 0, strand))
+        #in very rare cases, inron may be at pos 0, in which case jitter may cause overflow.
+        intron_bed.append((chrm, max(start - 1 - jitter, 0), max(stop + 1 + jitter + 1,0), introns[(start, stop, strand)], 0, strand))
 
     if not bool(introns):
         # No introns were found.
@@ -294,6 +295,14 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
     exitrons = []
     exitrons_added = []
     known_splices = set()
+
+    # load blacklist of known false-positive hot spots
+    try:
+        with open('blacklist.tsv', 'r') as b:
+            b.readline()
+            blacklist = [l.split('\t')[1].rstrip() for l in b]
+    except:
+            blacklist = []
 
     for feature in intersection:
         # Check for intron within coding exon.
@@ -320,6 +329,7 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
 
         elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
             and region_end > intron_end - 1 - jitter:
+                if feature.attrs['gene_id'] in blacklist: continue
                 if (intron_start, intron_end, region_type) not in exitrons_added:
                     exitrons.append({'chrom':feature.chrom,
                                     'start':intron_start + 1 + jitter,
@@ -888,6 +898,14 @@ def main(tmp_path):
     except:
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
+
+    # check for blacklist
+    try:
+        b = open('blacklist.tsv', 'r')
+        b.close()
+    except FileNotFoundError:
+        print('No blacklist found -- continuing without it, beware of false positives')
+
 
     # Begin exitron calling
     global results
