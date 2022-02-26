@@ -297,8 +297,10 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
     known_splices = set()
 
     # load blacklist of known false-positive hot spots
+    this_dir = os.path.dirname(os.path.realpath(__file__))
+    blacklist_path = os.path.join(this_dir, 'blacklist.tsv')
     try:
-        with open('blacklist.tsv', 'r') as b:
+        with open(blacklist_path, 'r') as b:
             b.readline()
             blacklist = [l.split('\t')[1].rstrip() for l in b]
     except:
@@ -900,8 +902,11 @@ def main(tmp_path):
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
 
     # check for blacklist
+    this_dir = os.path.dirname(os.path.realpath(__file__))
+    blacklist_path = os.path.join(this_dir, 'blacklist.tsv')
+
     try:
-        b = open('blacklist.tsv', 'r')
+        b = open(blacklist_path, 'r')
         b.close()
     except FileNotFoundError:
         print('No blacklist found -- continuing without it, beware of false positives')
