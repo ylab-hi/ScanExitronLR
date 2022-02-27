@@ -229,10 +229,13 @@ def find_introns(read_iterator, stranded):
             elif tag == BAM_CREF_SKIP or (tag == 2 and nt >= 30):
                 junc_start = base_position
                 base_position += nt
+                junc_end = base_position
                 if stranded == 'no':
                     strand = '-' if r.is_reverse else '+'
-                    introns[(junc_start, base_position, strand)] += 1
-                    reads[(junc_start, base_position, strand)].append(r.query_name)
+                    if r.cigartuples[i - 1][0] == 2: junc_start -= r.cigartuples[i - 1][1]
+                    if r.cigartuples[i + 1][0] == 2: junc_end += r.cigartuples[i + 1][1]
+                    introns[(junc_start, junc_end, strand)] += 1
+                    reads[(junc_start, junc_end, strand)].append(r.query_name)
                 else:
                     if stranded == 'fr-firststrand':
                         strand = '+' if (r.is_read2 and not r.is_reverse) or \
@@ -240,8 +243,8 @@ def find_introns(read_iterator, stranded):
                     elif stranded == 'fr-secondstrand':
                         strand = '+' if (r.is_read1 and not r.is_reverse) or \
                                         (r.is_read2 and r.is_reverse) else '-'
-                    introns[(junc_start, base_position, strand)] += 1
-                    reads[(junc_start, base_position, strand)].append(r.query_name)
+                    introns[(junc_start, junc_end, strand)] += 1
+                    reads[(junc_start, junc_end, strand)].append(r.query_name)
 
     return introns, reads, meta_data
 
