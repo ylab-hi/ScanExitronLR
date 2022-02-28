@@ -42,6 +42,13 @@ def parse_args():
         required=True,
     )
     parser.add_argument(
+        "-aradopsis",
+        "--aradopsis",
+        action="store_true",
+        dest="aradopsis",
+        help="If set, runs exitron calling assuming genome and annotation is from aradopsis thaliana",
+    )
+    parser.add_argument(
         "-g",
         "--genome",
         action="store",
@@ -117,11 +124,11 @@ def parse_args():
         help="If specified, candidate misaligned exitrons will be not be realigned. (default: %(default)s"
     )
     parser.add_argument(
-        "-vb",
-        "--verbose",
-        action="store_true",
-        dest="verbose",
-        help="If specified, the exitron file will include extra details (default: False)",
+        "-sa",
+        "--save-abundance",
+        action="store",
+        dest="save_abundance",
+        help="If specified, saves two files USER_SPECIFIED.normals and USER_SPECIFIED.exitrons to use in downstream LIQA differential expression analysis.",
     )
     parser.add_argument(
         "-md",
@@ -249,7 +256,7 @@ def find_introns(read_iterator, stranded):
     return introns, reads, meta_data
 
 
-def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50, jitter = 10):
+def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded = 'no', mapq = 50, jitter = 10):
     """
 
 
@@ -314,8 +321,10 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
         region_type = feature.fields[2]
         region_start = feature.start
         region_end = feature.end
-        gene_name = feature.attrs['gene_name']
-        gene_id = feature.attrs['gene_id']
+        if aradopsis and (region_type in ['mRNA', 'gene', 'protein']): continue
+        gene_name = feature.attrs['gene_name'] if not aradopsis else feature.attrs['Parent']
+        gene_id = feature.attrs['gene_id'] if not aradopsis else feature.attrs['Parent']
+        transcript_id = feature.attrs['transcript_id'] if not aradopsis else gene_id
 
         intron_start = int(feature.fields[10])
         intron_end = int(feature.fields[11])
@@ -324,17 +333,17 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
         # Use the ends to check for known donors or acceptors
         if region_type == 'exon':
             if intron_start in range(region_end - jitter*2, region_end + 1) and \
-                feature.end != db[feature.attrs['transcript_id']].end:
+                feature.end != db[transcript_id].end:
                 # intron matches a known donor
                 known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D'))
             if intron_end in range(region_start, region_start + 1 + jitter*2) and \
-                feature.start + 1 != db[feature.attrs['transcript_id']].start:
+                feature.start + 1 != db[transcript_id].start:
                 # intron matches a known acceptor
                 known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A'))
 
         elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
             and region_end > intron_end - 1 - jitter:
-                if feature.attrs['gene_id'] in blacklist: continue
+                if gene_id in blacklist: continue
                 if (intron_start, intron_end, region_type) not in exitrons_added:
                     exitrons.append({'chrom':feature.chrom,
                                     'start':intron_start + 1 + jitter,
@@ -347,7 +356,7 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
                                     'gene_id':gene_id,
                                     'length':intron_end - 2 - jitter + 1 - (intron_start + 1 + jitter) - 1,
                                     'splice_site':'splice_site',
-                                    'transcript_id':feature.attrs['transcript_id']})
+                                    'transcript_id':transcript_id})
                     exitrons_added.append((intron_start, intron_end, region_type))
                 elif 'tag' in feature.attrs.keys():
                     if ('basic' in feature.attrs['tag'] or
@@ -357,7 +366,7 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
                         #submit an issue with pybedtools
                         for e in exitrons:
                             if e['name'] == f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}':
-                                e['transcript_id'] = feature.attrs['transcript_id']
+                                e['transcript_id'] = transcript_id
                                 break
 
     del intersection
@@ -369,7 +378,7 @@ def exitron_caller(bamfile, referencename, chrm, db, stranded = 'no', mapq = 50,
 
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, skip_realign, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
+def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realign, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
     """
     Parameters
     ----------
@@ -608,28 +617,30 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, db, sk
     return res, meta_data
 
 
-def identify_transcripts(exitrons, db, bamfilename, tmp_path):
+def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_file_name):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
+
     # construct new bamfile
     tmp_bamfile_exitrons = pysam.AlignmentFile(tmp_path + '/e_tmp.bam', 'wb', template = bamfile)
-    # TODO: perhaps do differential quantification.
-    # tmp_bamfile_normals = pysam.AlignmentFile(tmp_path + '/tmp.bam', 'wb', template = bamfile)
+    if save_abundance:
+        tmp_bamfile_normals = pysam.AlignmentFile(tmp_path + '/n_tmp.bam', 'wb', template = bamfile)
+
     for e in exitrons:
         e_reads = e['reads'].split(',')
         # fetch reads at exitron junction
         for read in bamfile.fetch(e['chrom'], start = int(e['start']), stop = int(e['end'])):
             if read.query_name in e_reads:
                 tmp_bamfile_exitrons.write(read)
-            # else:
-                # tmp_bamfile_normals.write(read)
+            elif save_abundance:
+                tmp_bamfile_normals.write(read)
     tmp_bamfile_exitrons.close()
-    # tmp_bamfile_normals.close()
+    if save_abundance: tmp_bamfile_normals.close()
     bamfile.close()
 
     pysam.sort('-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
-    # pysam.sort('-o', tmp_path + '/tmp_sorted.bam', tmp_path + '/tmp.bam')
+    if save_abundance: pysam.sort('-o', tmp_path + '/n_tmp_sorted.bam', tmp_path + '/n_tmp.bam')
     pysam.index(tmp_path + '/e_tmp_sorted.bam')
-    # pysam.index(tmp_path + '/tmp_sorted.bam')
+    if save_abundance: pysam.index(tmp_path + '/n_tmp_sorted.bam')
 
     # build a small gtf file of only thoes exitron spliced genes
     with open(tmp_path + '/tmp.gtf', 'w') as f:
@@ -663,8 +674,25 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
                     f'{jitter}',
                     '-f_weight',
                     '0'])
+    if save_abundance:
+        # run liqa to quantify isoform expression
+        jitter = 10 #TODO make this an argument
+        subprocess.run(['liqa',
+                        '-task',
+                        'quantify',
+                        '-refgene',
+                        f'{tmp_path + "/tmp.refgene"}',
+                        '-bam',
+                        f'{tmp_path + "/n_tmp_sorted.bam"}',
+                        '-out',
+                        f'{save_abundance + ".normals"}', #TODO maybe it's worth it to keep this file
+                        '-max_distance',
+                        f'{jitter}',
+                        '-f_weight',
+                        '0'])
 
     ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
+    if save_abundance: ie.to_csv(save_abundance + '.exitrons', sep = '\t', index = False)
     for e in exitrons:
         gene = e['gene_name']
         ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
@@ -830,7 +858,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path):
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, verbose, stranded, skip_realign):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, stranded, skip_realign, aradopsis):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -842,6 +870,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                               referencename,
                               chrm,
                               db,
+                              aradopsis,
                               stranded,
                               mapq,
                               jitter)
@@ -851,7 +880,6 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                     bamfile,
                     genome,
                     meta_data,
-                    verbose,
                     db,
                     skip_realign,
                     mapq,
@@ -864,15 +892,17 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
     return exitrons, meta_data, chrm
 
 def main(tmp_path):
+    # Get arguments
+    args = parse_args()
     # Define chrms
     chrms = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5',
         'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
         'chr11','chr12', 'chr13', 'chr14', 'chr15',
         'chr16','chr17', 'chr18', 'chr19', 'chr20',
-        'chr21', 'chr22', 'chrX', 'chrY', 'chrM']
+        'chr21', 'chr22', 'chrX', 'chrY', 'chrM'] if not args.aradopsis else \
+        ['Chr1', 'Chr2', 'Chr3', 'Chr4',
+         'Chr5', 'ChrM', 'Chrchloroplast']
 
-    # Get arguments
-    args = parse_args()
     # genome_ref, annotation_ref = config_getter('config.ini') # no longer using config.ini
 
     # Check to see if bamfile can be opened and there is an index.
@@ -943,9 +973,9 @@ def main(tmp_path):
                                                         args.pso_min,
                                                         args.ao_min,
                                                         args.jitter,
-                                                        args.verbose,
                                                         args.stranded,
-                                                        args.skip_realign), callback = collect_result))
+                                                        args.skip_realign,
+                                                        args.aradopsis), callback = collect_result))
         pool.close()
         for t in threads:
             t.get() # this gets any exceptions raised
@@ -961,23 +991,23 @@ def main(tmp_path):
                                         args.pso_min,
                                         args.ao_min,
                                         args.jitter,
-                                        args.verbose,
                                         args.stranded,
-                                        args.skip_realign)
+                                        args.skip_realign,
+                                        args.aradopsis)
             collect_result(output)
     exitrons = []
     for chrm in results:
         exitrons.extend(results[chrm])
 
-    print('Quantifying transcripts.')
-    sys.stdout.flush()
-    # update transcripts
-    identify_transcripts(exitrons, db, args.input, tmp_path)
-
     out_file_name = args.out
     if not out_file_name:
         prefix = os.path.splitext(os.path.basename(bamfile.filename.decode('UTF-8')))[0]
         out_file_name = f'{prefix}.exitron'
+
+    print('Quantifying transcripts.')
+    sys.stdout.flush()
+    # update transcripts
+    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, out_file_name)
     print(f'Finished exitron calling and filtering. Printing to {out_file_name}')
     sys.stdout.flush()
     with open(out_file_name, 'w') as out:
