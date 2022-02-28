@@ -322,8 +322,8 @@ def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded
         region_start = feature.start
         region_end = feature.end
         if aradopsis and (region_type not in ['CDS', 'exon', 'three_prime_UTR', 'five_prime_UTR']): continue
-        gene_name = feature.attrs['gene_name'] if not aradopsis else feature.attrs['Parent']
-        gene_id = feature.attrs['gene_id'] if not aradopsis else feature.attrs['Parent']
+        gene_name = feature.attrs['gene_name'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
+        gene_id = feature.attrs['gene_id'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
         transcript_id = feature.attrs['transcript_id'] if not aradopsis else gene_id
 
         intron_start = int(feature.fields[10])
