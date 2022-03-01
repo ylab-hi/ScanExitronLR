@@ -114,7 +114,7 @@ def parse_args():
         dest="pso_min",
         type=float,
         help="PSO cutoff (default: %(default)s)",
-        default=0.005,
+        default=0.01,
     )
     parser.add_argument(
         "-sr",
@@ -126,9 +126,9 @@ def parse_args():
     parser.add_argument(
         "-sa",
         "--save-abundance",
-        action="store",
+        action="store_true",
         dest="save_abundance",
-        help="If specified, saves two files USER_SPECIFIED.normals and USER_SPECIFIED.exitrons to use in downstream LIQA differential expression analysis.",
+        help="If specified, saves two files OUTPUT_FILENAME.isoform.normals and OUTPUT_FILENAME.isoform..exitrons to use in downstream LIQA differential expression analysis.",
     )
     parser.add_argument(
         "-md",
@@ -618,7 +618,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
     return res, meta_data
 
 
-def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_file_name, aradopsis):
+def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, input_fn, aradopsis):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
 
     # construct new bamfile
@@ -685,6 +685,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
                     '0'])
     if save_abundance:
         # run liqa to quantify isoform expression
+
         jitter = 10 #TODO make this an argument
         subprocess.run(['liqa',
                         '-task',
@@ -694,14 +695,14 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
                         '-bam',
                         f'{tmp_path + "/n_tmp_sorted.bam"}',
                         '-out',
-                        f'{save_abundance + ".isoform.normals"}', #TODO maybe it's worth it to keep this file
+                        f'{os.path.splitext(input_fn)[0] + ".isoform.normals"}', #TODO maybe it's worth it to keep this file
                         '-max_distance',
                         f'{jitter}',
                         '-f_weight',
                         '0'])
 
     ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
-    if save_abundance: ie.to_csv(save_abundance + '.isoform.exitrons', sep = '\t', index = False)
+    if save_abundance: ie.to_csv(os.path.splitext(input_fn)[0] + ".isoform.exitrons", sep = '\t', index = False)
     for e in exitrons:
         gene = e['gene_name']
         ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
@@ -1010,13 +1011,12 @@ def main(tmp_path):
 
     out_file_name = args.out
     if not out_file_name:
-        prefix = os.path.splitext(os.path.basename(bamfile.filename.decode('UTF-8')))[0]
-        out_file_name = f'{prefix}.exitron'
+        out_file_name = f'{os.path.splitext(args.input)[0]}.exitron'
 
     print('Quantifying transcripts.')
     sys.stdout.flush()
     # update transcripts
-    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, out_file_name, args.aradopsis)
+    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, args.input, args.aradopsis)
     print(f'Finished exitron calling and filtering. Printing to {out_file_name}')
     sys.stdout.flush()
     with open(out_file_name, 'w') as out:
