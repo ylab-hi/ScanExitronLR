@@ -322,9 +322,8 @@ def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded
         region_start = feature.start
         region_end = feature.end
         if aradopsis and (region_type not in ['CDS', 'exon', 'three_prime_UTR', 'five_prime_UTR']): continue
-        gene_name = feature.attrs['gene_name'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
-        gene_id = feature.attrs['gene_id'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
-        transcript_id = feature.attrs['transcript_id'] if not aradopsis else gene_id
+        gene_name = feature.attrs['gene_name'] if not aradopsis else feature.attrs['Parent'].split('.')[0]
+        gene_id = feature.attrs['gene_id'] if not aradopsis else feature.attrs['Parent'].split('.')[0]
 
         intron_start = int(feature.fields[10])
         intron_end = int(feature.fields[11])
@@ -332,6 +331,7 @@ def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded
 
         # Use the ends to check for known donors or acceptors
         if region_type == 'exon':
+            transcript_id = feature.attrs['transcript_id'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
             if intron_start in range(region_end - jitter*2, region_end + 1) and \
                 feature.end != db[transcript_id].end:
                 # intron matches a known donor
@@ -343,6 +343,7 @@ def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded
 
         elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
             and region_end > intron_end - 1 - jitter:
+                transcript_id = feature.attrs['transcript_id'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
                 if gene_id in blacklist: continue
                 if (intron_start, intron_end, region_type) not in exitrons_added:
                     exitrons.append({'chrom':feature.chrom,
@@ -617,7 +618,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
     return res, meta_data
 
 
-def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_file_name):
+def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_file_name, aradopsis):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
 
     # construct new bamfile
@@ -646,7 +647,15 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     with open(tmp_path + '/tmp.gtf', 'w') as f:
         for e in exitrons:
             for region in db.children(db[e['gene_id']], order_by = 'start'):
-                f.write(str(region) + '\n')
+                if aradopsis and region.featuretype == 'exon':
+                    gene_id = e['gene_id']
+                    transcript_id = region.attributes['Parent'][0]
+                    region = str(region).split('\t')
+                    region[8] = f'gene_id "{gene_id}"; transcript_id "{transcript_id}";'
+                    f.write('\t'.join(region) + '\n')
+                elif not aradopsis:
+                    f.write(str(region) + '\n')
+
 
     # run liqa to create refgene
     subprocess.run(['liqa',
@@ -685,14 +694,14 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
                         '-bam',
                         f'{tmp_path + "/n_tmp_sorted.bam"}',
                         '-out',
-                        f'{save_abundance + ".normals"}', #TODO maybe it's worth it to keep this file
+                        f'{save_abundance + ".isoform.normals"}', #TODO maybe it's worth it to keep this file
                         '-max_distance',
                         f'{jitter}',
                         '-f_weight',
                         '0'])
 
     ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
-    if save_abundance: ie.to_csv(save_abundance + '.exitrons', sep = '\t', index = False)
+    if save_abundance: ie.to_csv(save_abundance + '.isoform.exitrons', sep = '\t', index = False)
     for e in exitrons:
         gene = e['gene_name']
         ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
@@ -1007,7 +1016,7 @@ def main(tmp_path):
     print('Quantifying transcripts.')
     sys.stdout.flush()
     # update transcripts
-    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, out_file_name)
+    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, out_file_name, args.aradopsis)
     print(f'Finished exitron calling and filtering. Printing to {out_file_name}')
     sys.stdout.flush()
     with open(out_file_name, 'w') as out:
