@@ -618,7 +618,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
     return res, meta_data
 
 
-def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, input_fn, aradopsis):
+def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_fn, aradopsis):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
 
     # construct new bamfile
@@ -678,7 +678,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, in
                     '-bam',
                     f'{tmp_path + "/e_tmp_sorted.bam"}',
                     '-out',
-                    f'{tmp_path + "/isoform_estimates.out"}', #TODO maybe it's worth it to keep this file
+                    f'{tmp_path + "/isoform_estimates.out"}',
                     '-max_distance',
                     f'{jitter}',
                     '-f_weight',
@@ -695,14 +695,14 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, in
                         '-bam',
                         f'{tmp_path + "/n_tmp_sorted.bam"}',
                         '-out',
-                        f'{os.path.splitext(input_fn)[0] + ".isoform.normals"}', #TODO maybe it's worth it to keep this file
+                        f'{os.path.splitext(out_fn)[0] + ".isoform.normals"}',
                         '-max_distance',
                         f'{jitter}',
                         '-f_weight',
                         '0'])
 
     ie = pd.read_csv(f'{tmp_path}/isoform_estimates.out', sep='\t')
-    if save_abundance: ie.to_csv(os.path.splitext(input_fn)[0] + ".isoform.exitrons", sep = '\t', index = False)
+    if save_abundance: ie.to_csv(os.path.splitext(out_fn)[0] + ".isoform.exitrons", sep = '\t', index = False)
     for e in exitrons:
         gene = e['gene_name']
         ie_slice = ie[ie['GeneName'] == gene].sort_values(ascending = False, by = 'RelativeAbundance')
@@ -1016,7 +1016,7 @@ def main(tmp_path):
     print('Quantifying transcripts.')
     sys.stdout.flush()
     # update transcripts
-    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, args.input, args.aradopsis)
+    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, out_file_name, args.aradopsis)
     print(f'Finished exitron calling and filtering. Printing to {out_file_name}')
     sys.stdout.flush()
     with open(out_file_name, 'w') as out:
