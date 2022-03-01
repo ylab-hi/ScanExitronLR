@@ -39,7 +39,7 @@ Inspect the output:
     AT1G80245	0.647158117957978
     AT2G26030	0.000188791935434085
 
-We see that isoforms the gene `AT2G26030`  are differentially expressed in exitron reads compared to normal reads. To see which transcript specifically is enriched with exitrons, we can use a simple `grep`: 
+The second column is a p-value. We see that isoforms in the gene `AT2G26030`  are differentially expressed in exitron reads compared to normal reads. To see which transcript specifically is enriched with exitrons, we can use a simple `grep`: 
 
     grep "AT2G26030" *.isoform.*
     
