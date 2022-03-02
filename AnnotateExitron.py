@@ -190,7 +190,7 @@ def get_gene_exitron_seq(exitron, db, genome_fn):
             except UnboundLocalError:
                 # occurs when neither stop nor start codon was encountered before exitron
                 # this can happen if the inferred transcript is one where the
-                # exitron is actually located in a UTR region instead of CDS
+                # exitron is located in a UTR region instead of CDS
                 return None, None, None, None, None, None, None
             seq += cds_seq[:e_start - exon.start + 1] + cds_seq[e_end - exon.start:]
             seq_pos.extend([*range(exon.start, e_start + 1)])
@@ -387,7 +387,8 @@ def main(tmp_path):
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
 
-
+    if not args.out:
+        args.out = args.input + '.annotated'
 
     with open(args.out, 'w') as out:
         header = ['chrom',
@@ -404,7 +405,7 @@ def main(tmp_path):
                   'transcript_id',
                   'pso',
                   'dp',
-                  'conf',
+                  'consensus_prop',
                   'exitron_prot_position',
                   'type',
                   'substitution',
