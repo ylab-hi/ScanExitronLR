@@ -77,7 +77,7 @@ def parse_args():
         action="store",
         dest="prot_domains",
         help="Input tab separated file of pfam protein domains. (optional)",
-        default='data/prot_domains_pfam.tsv',
+        default=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data/prot_domains_pfam.tsv'),
     )
     parser.add_argument(
         "-v", "--version", action="version", version="%(prog)s {}".format(__version__)
