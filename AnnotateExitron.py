@@ -337,7 +337,7 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn):
 #     print(categorize_exitron(exitron, bamfile))
 
 def get_pfam_domains(exitron, prot_df):
-    df_gene = prot_df[prot_df['Gene stable ID version'] == exitron['gene_id']]
+    df_gene = prot_df[prot_df['Transcript stable ID version'] == exitron['transcript_id']]
     if exitron['type'][:9] == 'truncated':
         e_start = int(exitron['exitron_prot_position'])
         e_end = e_start + int(exitron['length'])//3
