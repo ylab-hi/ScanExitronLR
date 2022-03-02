@@ -341,7 +341,9 @@ def get_pfam_domains(exitron, prot_df):
     if exitron['type'][:9] == 'truncated':
         e_start = int(exitron['exitron_prot_position'])
         e_end = e_start + int(exitron['length'])//3
-        pf_ids = df_gene[(df_gene['Pfam start'] > e_start) & (df_gene['Pfam start'] < e_end)]
+        pf_ids = df_gene[(((df_gene['Pfam start'] >= e_start) & (df_gene['Pfam start'] <= e_end)) |
+                          ((df_gene['Pfam end'] >= e_start) & (df_gene['Pfam end'] <= e_end)) |
+                          ((df_gene['Pfam start'] <= e_start) & (df_gene['Pfam end'] >= e_end)))]
         pf_ids = set(pf_ids['Pfam ID'])
         if pf_ids:
             exitron['prot_domains'] = ','.join(pf_ids)
