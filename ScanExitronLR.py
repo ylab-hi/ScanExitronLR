@@ -165,7 +165,7 @@ def parse_args():
 
 tab = str.maketrans("ACTG", "TGAC")
 def rc(seq):
-    return seq.translate(tab)[::-1]
+    return seq.upper().translate(tab)[::-1]
 # No longer using config.ini
 
 # def config_getter(config_file='config.ini'):
@@ -542,12 +542,12 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                         continue # no nt overlap with exon
 
                     try:
-                        r_seq = read.seq[start:end]
+                        r_seq = read.seq[start:end].upper()
                     except:
                         continue # strangely, sometimes pysam returns None from read.seq
                     if not r_seq: continue
                     # exon.sequence(-) is much faster than using pysam Fast
-                    g_seq = exon.sequence(genome.filename.decode()) if exon.strand == '+' else rc(exon.sequence(genome.filename.decode()))
+                    g_seq = exon.sequence(genome.filename.decode()).upper() if exon.strand == '+' else rc(exon.sequence(genome.filename.decode()).upper())
 
                     exitron_seq = g_seq[e_start - exon.start + 1 - 2: e_end - exon.start + 2]
 

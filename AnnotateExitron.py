@@ -164,6 +164,7 @@ def get_gene_exitron_seq(exitron, db, genome_fn):
     e_end = int(exitron['end'])
     strand = exitron['strand']
     transcript = exitron['transcript_id']
+    exitron_pos = None
     try:
         start_codon = next(db.children(db[transcript], featuretype = ['start_codon']))
         stop_codon = next(db.children(db[transcript], featuretype = ['stop_codon']))
@@ -213,6 +214,13 @@ def get_gene_exitron_seq(exitron, db, genome_fn):
             if after_start_codon: ej_after_start_codon.append(len(seq) - 1)
             if before_start_codon: ej_before_start_codon.append(len(seq) - 1)
 
+    if not exitron_pos:
+        # This can happen if LIQA detects exitron in a transcript for which the
+        # start or end point of the exitron is not present.  This happens if LIQA
+        # just gets the transcript wrong, or if the exitron is similar to an intron
+        # in another transcript--LIQA may assign some abundance to that transcript
+        # If this happens, just return None and move on.
+        return None, None, None, None, None, None, None
     return seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon
 
 def get_gene_seq(exitron, db, genome_fn):
@@ -245,13 +253,13 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn):
     seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon = get_gene_exitron_seq(exitron, db, genome_fn)
     if not seq:
         # without start/stop codons, all we can infer is truncation vs frameshift
-        exitron['exitron_prot_position'] = 'NA'
+        exitron['exitron_prot_position'] = '.'
         exitron['type'] = 'truncated' if int(exitron['length']) % 3 == 0 else 'frameshift'
         exitron['substitution'] = '.'
-        exitron['nmd_status_predicted'] = 'NA'
-        exitron['nmd_status_read_percentage'] = 'NA'
-        exitron['downstream_inframe_AUG'] = 'NA'
-        exitron['start_proximal_PTC'] = 'NA'
+        exitron['nmd_status_predicted'] = '.'
+        exitron['nmd_status_read_percentage'] = '.'
+        exitron['downstream_inframe_AUG'] = '.'
+        exitron['start_proximal_PTC'] = '.'
         return exitron, None, None
 
     seq = Seq(seq) if exitron['strand'] == '+' else Seq(seq).reverse_complement()
@@ -268,8 +276,10 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn):
 
     # exitron is frameshift iff length % 3 != 0
     if int(exitron['length']) % 3 != 0:
-
-        frameshift_prot = seq[start_codon_pos:].translate(to_stop = True)
+        # add trailing ends so that sequence is divisible by 3 (otherwise biopython complains)
+        n_adjust = 'N'*(3 - len(seq[start_codon_pos:]) % 3)
+        frameshift_seq = seq[start_codon_pos:] + n_adjust
+        frameshift_prot = frameshift_seq.translate(to_stop = True)
         frameshift_pos = seq_pos[start_codon_pos + len(frameshift_prot)*3 - 1]
         nmd, tot = get_nmd_status(exitron, frameshift_pos,  bamfile)
 
@@ -287,8 +297,8 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn):
         exitron['type'] = 'frameshift'
         exitron['substitution'] = '.'
         exitron['nmd_status_predicted'] = nmd_pred
-        exitron['nmd_status_read_percentage'] = nmd/tot
-        exitron['downstream_inframe_AUG'] = 'M' in seq[start_codon_pos + len(frameshift_prot)*3 + 3:].translate()
+        exitron['nmd_status_read_percentage'] = nmd/tot if tot > 0 else '.'
+        exitron['downstream_inframe_AUG'] = 'M' in (seq[start_codon_pos + len(frameshift_prot)*3 + 3:] + n_adjust).translate()
         exitron['start_proximal_PTC'] = exitron_pos <= 200
 
         return exitron, str(dna_seq), str(frameshift_prot) + '*'
@@ -297,7 +307,20 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn):
     elif (exitron_pos - 1) % 3 != 0:
         seq_full = get_gene_seq(exitron, db, genome_fn) if exitron['strand'] == '+' else str(Seq(get_gene_seq(exitron, db, genome_fn)).reverse_complement())
         # new aa is at aa where exitron begins in spliced protein sequence
-        new_aa = str(seq[start_codon_pos:stop_codon_pos + 3].translate())[exitron_pos//3]
+        try:
+            new_aa = str(seq[start_codon_pos:stop_codon_pos + 3].translate())[exitron_pos//3]
+        except:
+            # This can happen if LIQA predicts that exitron occurs in transcript
+            # at 3' or 5' UTR.  This can happen if exitron was originally called in
+            # CDS region.  If this happens, just continue
+            exitron['exitron_prot_position'] = '.'
+            exitron['type'] = '.'
+            exitron['substitution'] = '.'
+            exitron['nmd_status_predicted'] = '.'
+            exitron['nmd_status_read_percentage'] = '.'
+            exitron['downstream_inframe_AUG'] = '.'
+            exitron['start_proximal_PTC'] = '.'
+            return exitron, None, None
         # old aa is at aa where exitron begins in non-spliced protein sequence
         old_aa = str(Seq(seq_full).translate())[exitron_pos//3]
 
@@ -431,10 +454,10 @@ def main(tmp_path):
                 res, _, _= categorize_exitron(exitron.copy(), t_id, bamfile, db, args.genome_ref)
 
                 # idetnify pfam domains
-                if res['exitron_prot_position'] != 'NA':
+                if res['exitron_prot_position'] != '.':
                     get_pfam_domains(res, prot_df)
                 else:
-                    res['prot_domains'] = 'NA'
+                    res['prot_domains'] = '.'
 
                 # update abundance
                 res['transcript_id'] += f',{abundance}'
