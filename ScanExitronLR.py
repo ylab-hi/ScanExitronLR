@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 #
-# ScanExitron v1 written by Tingyou Wang@Yang Lab, University of Minnesota
+# ScanExitron v1 written by Tingyou Wang@Yang Lab, Hormel In
 #
 # ScanExitronLR written by Josh Fry@Yang Lab, University of Minnesota
 #
 #===============================================================================
-__version__ = 'v0.1'
+__version__ = 'v0.2'
 import sys
 import os
 import argparse
@@ -42,11 +42,11 @@ def parse_args():
         required=True,
     )
     parser.add_argument(
-        "-aradopsis",
-        "--aradopsis",
+        "-arabidopsis",
+        "--arabidopsis",
         action="store_true",
-        dest="aradopsis",
-        help="If set, runs exitron calling assuming genome and annotation is from aradopsis thaliana",
+        dest="arabidopsis",
+        help="If set, runs exitron calling assuming genome and annotation is from arabidopsis thaliana",
     )
     parser.add_argument(
         "-g",
@@ -81,7 +81,7 @@ def parse_args():
         dest='cores',
         type=int,
         help="Number of cores for parallel processing. If 0 then no parallel processing is used (default: %(default)s)",
-        default=0)
+        default=1)
     parser.add_argument(
         '-m',
         '--mapq',
@@ -238,7 +238,14 @@ def find_introns(read_iterator, stranded):
                 base_position += nt
                 junc_end = base_position
                 if stranded == 'no':
-                    strand = '-' if r.is_reverse else '+'
+                    try:
+                        if r.get_tag('ts') == '+':
+                            strand = '-' if r.is_reverse else '+'
+                        elif r.get_tag('ts') == '-':
+                            strand = '+' if r.is_reverse else '-'
+                    except KeyError:
+                        # ts tag is not present, thus we don't know strand, continue
+                        continue
                     if r.cigartuples[i - 1][0] == 2: junc_start -= r.cigartuples[i - 1][1]
                     if r.cigartuples[i + 1][0] == 2: junc_end += r.cigartuples[i + 1][1]
                     introns[(junc_start, junc_end, strand)] += 1
@@ -256,7 +263,7 @@ def find_introns(read_iterator, stranded):
     return introns, reads, meta_data
 
 
-def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded = 'no', mapq = 50, jitter = 10):
+def exitron_caller(bamfile, referencename, chrm, db, arabidopsis = False, stranded = 'no', mapq = 50, jitter = 10):
     """
 
 
@@ -276,32 +283,32 @@ def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded
     # add jitter.  This will later be a parameter
     # jitter = 10
 
-    intron_bed = []
+    # intron_bed = []
 
     introns, reads, meta_data = find_introns(
         (read for read in bamfile.fetch(chrm) if read.mapping_quality >= mapq),
         stranded
         )
 
-    for start, stop, strand in introns:
-        #-1 and +2 so that we can capture the ends and beginning of adjacent transcripts
-        #this allows us to determine whether there is a known donor or acceptor site
-        #in very rare cases, inron may be at pos 0, in which case jitter may cause overflow.
-        intron_bed.append((chrm, max(start - 1 - jitter, 0), max(stop + 1 + jitter + 1,0), introns[(start, stop, strand)], 0, strand))
+    # for start, stop, strand in introns:
+    #     #-1 and +2 so that we can capture the ends and beginning of adjacent transcripts
+    #     #this allows us to determine whether there is a known donor or acceptor site
+    #     #in very rare cases, inron may be at pos 0, in which case jitter may cause overflow.
+    #     intron_bed.append((chrm, max(start - 1 - jitter, 0), max(stop + 1 + jitter + 1,0), introns[(start, stop, strand)], 0, strand))
 
-    if not bool(introns):
-        # No introns were found.
-        return ([], reads, meta_data)
+    # if not bool(introns):
+    #     # No introns were found.
+    #     return ([], reads, meta_data)
 
-    intron_bed_file = pybedtools.BedTool(intron_bed)
-    gtf_anno_sorted = pybedtools.BedTool(referencename)
-    # To deal with memory issues and multi-processing, we require that annotation is sorted.
-    # One line bash command: awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k4,4n -k5,5n"}' in.gtf > out_sorted.gtf
-    intersection = gtf_anno_sorted.intersect(intron_bed_file.sort(), s = True, wo = True, sorted = True)
+    # intron_bed_file = pybedtools.BedTool(intron_bed)
+    # gtf_anno_sorted = pybedtools.BedTool(referencename)
+    # # To deal with memory issues and multi-processing, we require that annotation is sorted.
+    # # One line bash command: awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k4,4n -k5,5n"}' in.gtf > out_sorted.gtf
+    # intersection = gtf_anno_sorted.intersect(intron_bed_file.sort(), s = True, wo = True, sorted = True)
 
-    del gtf_anno_sorted
-    del intron_bed_file
-
+    # del gtf_anno_sorted
+    # del intron_bed_file
+    gtf = pysam.TabixFile(referencename, parser = pysam.asGTF())
     exitrons = []
     exitrons_added = []
     known_splices = set()
@@ -316,61 +323,65 @@ def exitron_caller(bamfile, referencename, chrm, db, aradopsis = False, stranded
     except:
             blacklist = []
 
-    for feature in intersection:
-        # Check for intron within coding exon.
-        region_type = feature.fields[2]
-        region_start = feature.start
-        region_end = feature.end
-        if aradopsis and (region_type not in ['CDS', 'exon', 'three_prime_UTR', 'five_prime_UTR']): continue
-        gene_name = feature.attrs['gene_name'] if not aradopsis else feature.attrs['Parent'].split('.')[0]
-        gene_id = feature.attrs['gene_id'] if not aradopsis else feature.attrs['Parent'].split('.')[0]
+    for intron in introns:
+        intron_start = intron[0] - 1 - jitter
+        intron_end = intron[1] + 1 + jitter + 1
+        intron_witnesses = introns[intron]
+        intersection = gtf.fetch(chrm, intron_start, intron_end)
+        for feature in intersection:
+            # Check for intron within coding exon.
+            if feature.strand != intron[2]: continue # gtf.fetch is strand agnostic
+            region_type = feature.feature
+            region_start = feature.start
+            region_end = feature.end
+            if arabidopsis and (region_type not in ['CDS', 'exon', 'three_prime_UTR', 'five_prime_UTR']): continue
+            gene_name = feature.gene_name if not arabidopsis else feature.attrs['Parent'].split('.')[0]
+            gene_id = feature.gene_id if not arabidopsis else feature.attrs['Parent'].split('.')[0]
 
-        intron_start = int(feature.fields[10])
-        intron_end = int(feature.fields[11])
-        intron_witnesses = int(feature.fields[12])
+            # Use the ends to check for known donors or acceptors
+            if region_type == 'exon':
+                transcript_id = feature.transcript_id if not arabidopsis else feature.attrs['Parent'].split(',')[0]
+                if intron_start in range(region_end - jitter*2, region_end + 1) and \
+                    (chrm, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D') not in known_splices and \
+                    feature.end != db[transcript_id].end:
+                    # intron matches a known donor
+                    known_splices.add((chrm, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D'))
+                if intron_end in range(region_start, region_start + 1 + jitter*2) and \
+                    (chrm, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A') not in known_splices and \
+                    feature.start + 1 != db[transcript_id].start:
+                    # intron matches a known acceptor
+                    known_splices.add((chrm, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A'))
 
-        # Use the ends to check for known donors or acceptors
-        if region_type == 'exon':
-            transcript_id = feature.attrs['transcript_id'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
-            if intron_start in range(region_end - jitter*2, region_end + 1) and \
-                feature.end != db[transcript_id].end:
-                # intron matches a known donor
-                known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'D'))
-            if intron_end in range(region_start, region_start + 1 + jitter*2) and \
-                feature.start + 1 != db[transcript_id].start:
-                # intron matches a known acceptor
-                known_splices.add((feature.chrom, intron_start + 1 + jitter, intron_end - 2  - jitter + 1, 'A'))
+            elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
+                and region_end > intron_end - 1 - jitter:
+                    transcript_id = feature.transcript_id if not arabidopsis else feature.attrs['Parent'].split(',')[0]
+                    if gene_id in blacklist: continue
+                    if (intron_start, intron_end, region_type) not in exitrons_added:
+                        exitrons.append({'chrom':chrm,
+                                        'start':intron_start + 1 + jitter,
+                                        'end':intron_end - 2 - jitter + 1, #plus 1 because of bedtools conventions,
+                                        'name':f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}',
+                                        'region':region_type,
+                                        'ao':intron_witnesses,
+                                        'strand':feature.strand,
+                                        'gene_name':gene_name,
+                                        'gene_id':gene_id,
+                                        'length':intron_end - 2 - jitter + 1 - (intron_start + 1 + jitter) - 1,
+                                        'splice_site':'splice_site',
+                                        'transcript_id':transcript_id})
+                        exitrons_added.append((intron_start, intron_end, region_type))
+                    elif 'tag' in feature.keys():
+                        if ('basic' in feature.tag or
+                              'CCDS' in feature.tag or
+                              'ccdsid' in feature.keys()):
+                            #TODO pybedtools only grants access to ONE tag, we need to look at all the tags
+                            #submit an issue with pybedtools
+                            for e in exitrons:
+                                if e['name'] == f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}':
+                                    e['transcript_id'] = transcript_id
+                                    break
 
-        elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
-            and region_end > intron_end - 1 - jitter:
-                transcript_id = feature.attrs['transcript_id'] if not aradopsis else feature.attrs['Parent'].split(',')[0]
-                if gene_id in blacklist: continue
-                if (intron_start, intron_end, region_type) not in exitrons_added:
-                    exitrons.append({'chrom':feature.chrom,
-                                    'start':intron_start + 1 + jitter,
-                                    'end':intron_end - 2 - jitter + 1, #plus 1 because of bedtools conventions,
-                                    'name':f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}',
-                                    'region':region_type,
-                                    'ao':intron_witnesses,
-                                    'strand':feature.strand,
-                                    'gene_name':gene_name,
-                                    'gene_id':gene_id,
-                                    'length':intron_end - 2 - jitter + 1 - (intron_start + 1 + jitter) - 1,
-                                    'splice_site':'splice_site',
-                                    'transcript_id':transcript_id})
-                    exitrons_added.append((intron_start, intron_end, region_type))
-                elif 'tag' in feature.attrs.keys():
-                    if ('basic' in feature.attrs['tag'] or
-                          'CCDS' in feature.attrs['tag'] or
-                          'ccdsid' in feature.attrs.keys()):
-                        #TODO pybedtools only grants access to ONE tag, we need to look at all the tags
-                        #submit an issue with pybedtools
-                        for e in exitrons:
-                            if e['name'] == f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}':
-                                e['transcript_id'] = transcript_id
-                                break
-
-    del intersection
+        # del intersection
 
     return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices and
                                                  ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices)))],
@@ -426,6 +437,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
     """
     if not exitrons:
         return [], meta_data
+
     jitter = jitter*2
     #Need to compute reverse complement for splice junctions.
     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
@@ -434,6 +446,9 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
               '-':[]}
     collection = {'+':[],
                   '-':[]}
+
+    # need to sort exitrons for the clustering algorithm
+    exitrons.sort(key = lambda x: (x['start'], x['end']))
 
     # DEBUG: [(e['start'], e['end']) for e in exitrons]
     # filter one exitron at a time
@@ -462,13 +477,18 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
             for e in group:
                 start = e['start']
                 end = e['end']
-                genome_seq = genome[e['chrom']][start:end - 1].upper()
+                # pos = db[e['transcript_id']].end - start if strand == '-' else start - db[e['transcript_id']].start
+                # genome_seq = genome[e['chrom']][start:end - 1].upper()
                 if strand == '+':
+                    pos = start - db[e['transcript_id']].start + 1
+                    genome_seq = db[e['transcript_id']].sequence('../scanexitron/hg38.fa')[pos:pos + e['length']]
                     e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
                 elif strand == '-':
-                    right = rc(genome_seq[:2])
-                    left = rc(genome_seq[-2:])
-                    e['splice_site'] = left + '-' + right
+                    pos = db[e['transcript_id']].end - start
+                    genome_seq = db[e['transcript_id']].sequence('../scanexitron/hg38.fa')[pos - e['length']:pos]
+                    right = genome_seq[:2]
+                    left = genome_seq[-2:]
+                    e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
             try:
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
                                   key = lambda e: e['ao'])
@@ -618,7 +638,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
     return res, meta_data
 
 
-def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_fn, aradopsis):
+def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_fn, arabidopsis, cores):
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
 
     # construct new bamfile
@@ -638,7 +658,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     if save_abundance: tmp_bamfile_normals.close()
     bamfile.close()
 
-    pysam.sort('-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
+    pysam.sort('-@', str(cores), '-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
     if save_abundance: pysam.sort('-o', tmp_path + '/n_tmp_sorted.bam', tmp_path + '/n_tmp.bam')
     pysam.index(tmp_path + '/e_tmp_sorted.bam')
     if save_abundance: pysam.index(tmp_path + '/n_tmp_sorted.bam')
@@ -647,13 +667,13 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     with open(tmp_path + '/tmp.gtf', 'w') as f:
         for e in exitrons:
             for region in db.children(db[e['gene_id']], order_by = 'start'):
-                if aradopsis and region.featuretype == 'exon':
+                if arabidopsis and region.featuretype == 'exon':
                     gene_id = e['gene_id']
                     transcript_id = region.attributes['Parent'][0]
                     region = str(region).split('\t')
                     region[8] = f'gene_id "{gene_id}"; transcript_id "{transcript_id}";'
                     f.write('\t'.join(region) + '\n')
-                elif not aradopsis:
+                elif not arabidopsis:
                     f.write(str(region) + '\n')
 
 
@@ -868,7 +888,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, stranded, skip_realign, aradopsis):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, stranded, skip_realign, arabidopsis):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -880,7 +900,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                               referencename,
                               chrm,
                               db,
-                              aradopsis,
+                              arabidopsis,
                               stranded,
                               mapq,
                               jitter)
@@ -909,13 +929,13 @@ def main(tmp_path):
         'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
         'chr11','chr12', 'chr13', 'chr14', 'chr15',
         'chr16','chr17', 'chr18', 'chr19', 'chr20',
-        'chr21', 'chr22', 'chrX', 'chrY', 'chrM'] if not args.aradopsis else \
+        'chr21', 'chr22', 'chrX', 'chrY', 'chrM'] if not args.arabidopsis else \
         ['Chr1', 'Chr2', 'Chr3', 'Chr4',
          'Chr5', 'ChrM', 'Chrchloroplast']
 
     # genome_ref, annotation_ref = config_getter('config.ini') # no longer using config.ini
 
-    # Check to see if bamfile can be opened and there is an index.
+    # Check if bamfile can be opened and there is an index.
     try:
         bamfile = pysam.AlignmentFile(args.input, 'rb', require_index = True)
     except FileNotFoundError:
@@ -924,25 +944,34 @@ def main(tmp_path):
             pysam.index(args.input)
             bamfile = pysam.AlignmentFile(args.input, 'rb', require_index = True)
         except FileNotFoundError:
-            print(f'There is a problem opening bam file at: {args.input}')
+            print(f'ERROR: There is a problem opening bam file at: {args.input}')
+            sys.exit(1)
     bamfile.close()
 
+    # Check if LIQA is available
     try:
         subprocess.run(['liqa'], capture_output = True)
     except FileNotFoundError:
-        print('ERROR: unable to locate LIQA. Please install with "pip install liqa"')
+        print('ERROR: Unable to locate LIQA. Please install with "pip install liqa"')
+        sys.exit(1)
 
-    # prepage gffutils database
+    # Check for gziped annotation
+    if args.annotation_ref[-2:] != 'gz':
+        print('ERROR: Annotation file is required to be zipped in .gz format. Please compress your GTF/GFF file with a command such as: gzip -c in.gtf > out.gtf.gz')
+        sys.exit(1)
+
+    # Prepage gffutils database
     try:
-        print('Preparing annotation database...')
+        db = gffutils.FeatureDB(args.annotation_ref + '.db')
+        print(f'Using annotation databse {args.annotation_ref + ".db"}')
+    except ValueError:
+        print('Preparing annotation database... This may take awhile ... ')
         db = gffutils.create_db(args.annotation_ref,
                                 dbfn = args.annotation_ref + '.db',
                                 disable_infer_genes = True,
                                 disable_infer_transcripts = True)
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
-    except:
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
-        db = gffutils.FeatureDB(args.annotation_ref + '.db')
 
     # check for blacklist
     this_dir = os.path.dirname(os.path.realpath(__file__))
@@ -971,7 +1000,7 @@ def main(tmp_path):
         for key in meta_data_result:
             meta_data_out[key] = [item for item in meta_data_result[key]]
 
-    if args.cores:
+    if int(args.cores) > 1:
         pool = mp.Pool(int(args.cores))
         threads = []
         for chrm in chrms:
@@ -985,7 +1014,7 @@ def main(tmp_path):
                                                         args.jitter,
                                                         args.stranded,
                                                         args.skip_realign,
-                                                        args.aradopsis), callback = collect_result))
+                                                        args.arabidopsis), callback = collect_result))
         pool.close()
         for t in threads:
             t.get() # this gets any exceptions raised
@@ -1003,7 +1032,7 @@ def main(tmp_path):
                                         args.jitter,
                                         args.stranded,
                                         args.skip_realign,
-                                        args.aradopsis)
+                                        args.arabidopsis)
             collect_result(output)
     exitrons = []
     for chrm in results:
@@ -1016,7 +1045,14 @@ def main(tmp_path):
     print('Quantifying transcripts.')
     sys.stdout.flush()
     # update transcripts
-    identify_transcripts(exitrons, db, args.input, tmp_path, args.save_abundance, out_file_name, args.aradopsis)
+    identify_transcripts(exitrons,
+                         db,
+                         args.input,
+                         tmp_path,
+                         args.save_abundance,
+                         out_file_name,
+                         args.arabidopsis,
+                         args.cores)
     print(f'Finished exitron calling and filtering. Printing to {out_file_name}')
     sys.stdout.flush()
     with open(out_file_name, 'w') as out:
