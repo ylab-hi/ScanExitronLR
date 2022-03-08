@@ -481,11 +481,11 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                 # genome_seq = genome[e['chrom']][start:end - 1].upper()
                 if strand == '+':
                     pos = start - db[e['transcript_id']].start + 1
-                    genome_seq = db[e['transcript_id']].sequence('../scanexitron/hg38.fa')[pos:pos + e['length']]
+                    genome_seq = db[e['transcript_id']].sequence(genome)[pos:pos + e['length']]
                     e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
                 elif strand == '-':
                     pos = db[e['transcript_id']].end - start
-                    genome_seq = db[e['transcript_id']].sequence('../scanexitron/hg38.fa')[pos - e['length']:pos]
+                    genome_seq = db[e['transcript_id']].sequence(genome)[pos - e['length']:pos]
                     right = genome_seq[:2]
                     left = genome_seq[-2:]
                     e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
@@ -567,7 +567,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                         continue # strangely, sometimes pysam returns None from read.seq
                     if not r_seq: continue
                     # exon.sequence(-) is much faster than using pysam Fast
-                    g_seq = exon.sequence(genome.filename.decode()).upper() if exon.strand == '+' else rc(exon.sequence(genome.filename.decode()).upper())
+                    g_seq = exon.sequence(genome).upper() if exon.strand == '+' else rc(exon.sequence(genome).upper())
 
                     exitron_seq = g_seq[e_start - exon.start + 1 - 2: e_end - exon.start + 2]
 
@@ -904,18 +904,16 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                               stranded,
                               mapq,
                               jitter)
-    genome = pysam.FastaFile(genomename)
     exitrons, meta_data = filter_exitrons(exitrons,
                     reads,
                     bamfile,
-                    genome,
+                    genomename,
                     meta_data,
                     db,
                     skip_realign,
                     mapq,
                     pso_min,
                     ao_min)
-    genome.close()
     bamfile.close()
     del db
 
