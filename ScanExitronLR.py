@@ -526,6 +526,9 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
             if pso >= pso_min:
                 consensus_e['pso'] = round(pso, ndigits = 4)
                 consensus_e['dp'] = dp
+                consensus_e['a'] = a
+                consensus_e['b'] = b
+                consensus_e['c'] = c
                 res.append(consensus_e)
             else:
                 meta_data['low_pso'].append(consensus_e)
@@ -550,7 +553,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
 
 
             for read in bamfile.fetch(chrm, e_start, e_end):
-                if read.query_name in called_reads:
+                if read.query_name in called_reads or read.mapping_quality < mapq:
                     continue
                 if (any([max(0, min(exon_end, i[1]) - max(exon_start, i[0])) > 0
                         for i in bamfile.find_introns([read]).keys()])):
@@ -574,19 +577,16 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                     left = exitron_seq[:2]
                     right = exitron_seq[-2:]
                     exitron_seq = exitron_seq[2:-2]
-                    alignment = pairwise2.align.localms(g_seq, r_seq, 4, -2, -2, 0)[:10]
-
-                    # test to make sure exitron does not occur around the exon
-                    # lower than 0.7
                     similarity = pairwise2.align.localms(read.seq[start-e_length:end+e_length], exitron_seq, 2, -1, -2, -1, score_only = True)
                     similarity = similarity/(e_length*2) if similarity else 1 # if no alignment, just continue
-
-                    if similarity <= 0.7 and \
-                        (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10]) or
-                         any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10])):
-                            exitron['reads'] += f',{read.query_name}'
-                            exitron['ao'] += 1
-                            called_reads += f',{read.query_name}'
+                    if similarity <= 0.7:
+                        alignment = pairwise2.align.localms(g_seq, r_seq, 4, -2, -2, 0)[:10]
+                        if (any(re.findall(f'{left}--*', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10]) or
+                             any(re.findall(f'--*{right}', aln.seqB) and (e_length - 10 - len(r_seq)*0.05 <= aln.seqB.count('-') <= e_length + 10 + len(r_seq)*0.05) for aln in alignment[:10])):
+                                exitron['reads'] += f',REALIGNED_{read.query_name}'
+                                exitron['ao'] += 1
+                                exitron['pso'] = exitron['ao']/((exitron['a'] + exitron['b'] + exitron['c'] - exitron['ao']*3)/3.0 + exitron['ao'])
+                                called_reads += f',{read.query_name}'
 
     # for group in groups['-']:
     #     if not group:
