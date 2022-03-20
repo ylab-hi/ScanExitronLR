@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 #
-# ScanExitron v1 written by Tingyou Wang@Yang Lab, Hormel In
+# ScanExitron v1 written by Tingyou Wang@Yang Lab, Hormel Institute, University of Minnesota
 #
-# ScanExitronLR written by Josh Fry@Yang Lab, University of Minnesota
+# ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 #===============================================================================
 __version__ = 'v0.2'
@@ -11,16 +11,13 @@ import sys
 import os
 import argparse
 import pysam
-import pybedtools
 import subprocess
 import gffutils
 import re
 import traceback
 import multiprocessing as mp
 import pandas as pd
-# mp.set_start_method("spawn")
 from shutil import rmtree
-# from statistics import median
 from Bio import pairwise2
 from collections import Counter, defaultdict
 
@@ -29,16 +26,36 @@ from collections import Counter, defaultdict
 #===============================================================================
 
 def parse_args():
+    usage = """
+    \t\t-i STR\t\tREQUIRED: Input BAM file
+    \t\t-g STR\t\tREQUIRED: Input genome reference (e.g. hg38.fa)
+    \t\t-r STR\t\tREQUIRED: Input *sorted* and *gzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
+    \t\t\t\tIf your annotation file is not sorted, use the following command:
+    \t\t\t\t\tawk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k4,4n -k5,5n"}' in.gtf > out_sorted.gtf
+    \t\t\t\tIf your annotation file is not gziped, use the following command:
+    \t\t\t\t\tgzip -c in.gtf > out.gtf.gz
+    \t\t\t\tIf an annotation databse (e.g. your_database.gtf.gz.db) does not exist, one is created.
+    \t\t-o STR\t\tOutput filename (e.g. bam_filename.exitron <- this is default)
+    \t\t-a/--ao INT\tReports only exitrons with AO of INT or above (default: 1).
+    \t\t-p/--pso FLOAT\tReports only exitrons with PSO of FLOAT or above (default: 0.01).
+    \t\t-cp/--cluster-purity FLOAT\tReports only exitrons with cluster purity of FLOAT or above (default: 0).
+    \t\t-c/--cores INT\tUse INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
+    \t\t-arabidopsis\tUse this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
+    \t\t-m/--mapq INT\tOnly considers reads with mapq score >= INT (default: 50)
+    \t\t-j/--jitter INT\tTreat splice-sites with fuzzy boundry of +/- INT (default: 10).
+    \t\t-sr\t\tUse this flag to skip the realignment step.
+    \t\t-sa\t\tUse this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA.
+    \t\t\t\tFiles are of the form: input.isoform.exitrons, input.isoform.normals
+    """
     parser = argparse.ArgumentParser(
-        description="%(prog)s",
-        epilog="ScanExitronLR v0.1: detecting exitron splicing events using RNA-Seq data",
+        description="extract",
+        usage = usage
     )
     parser.add_argument(
         "-i",
         "--input",
         action="store",
         dest="input",
-        help="Input BAM/CRAM file (if no index is found, an index file is created).",
         required=True,
     )
     parser.add_argument(
@@ -46,14 +63,12 @@ def parse_args():
         "--arabidopsis",
         action="store_true",
         dest="arabidopsis",
-        help="If set, runs exitron calling assuming genome and annotation is from arabidopsis thaliana",
     )
     parser.add_argument(
         "-g",
         "--genome",
         action="store",
         dest="genome_ref",
-        help="Path to reference genome.",
         default=None,
         required=True
     )
@@ -62,7 +77,6 @@ def parse_args():
         "--reference-annotations",
         action="store",
         dest="annotation_ref",
-        help="Path to reference annotations.",
         default=None,
         required=True
     )
@@ -71,7 +85,6 @@ def parse_args():
         "--output",
         action="store",
         dest="out",
-        help="Output filename. (default: $bam_file_name.exitron)",
         default=None,
     )
     parser.add_argument(
@@ -80,7 +93,6 @@ def parse_args():
         action='store',
         dest='cores',
         type=int,
-        help="Number of cores for parallel processing. If 0 then no parallel processing is used (default: %(default)s)",
         default=1)
     parser.add_argument(
         '-m',
@@ -88,7 +100,6 @@ def parse_args():
         action='store',
         dest='mapq',
         type=int,
-        help="Consider only reads with MAPQ >= cutoff (default: %(default)s)",
         default=50)
     parser.add_argument(
         '-j',
@@ -96,7 +107,6 @@ def parse_args():
         action='store',
         dest='jitter',
         type=int,
-        help="Exitrons with splice sites +/- jitter away will be counted as a single splicing event.  (default: %(default)s)",
         default=10)
     parser.add_argument(
         "-a",
@@ -104,7 +114,6 @@ def parse_args():
         action="store",
         dest="ao_min",
         type=int,
-        help="AO cutoff (default: %(default)s)",
         default=1,
     )
     parser.add_argument(
@@ -113,40 +122,27 @@ def parse_args():
         action="store",
         dest="pso_min",
         type=float,
-        help="PSO cutoff (default: %(default)s)",
         default=0.01,
+    )
+    parser.add_argument(
+        "-cp",
+        "--cluster-purity",
+        action="store",
+        dest="cluster_purity",
+        type=float,
+        default=0,
     )
     parser.add_argument(
         "-sr",
         "--skip-realign",
         action="store_true",
         dest="skip_realign",
-        help="If specified, candidate misaligned exitrons will be not be realigned. (default: %(default)s"
     )
     parser.add_argument(
         "-sa",
         "--save-abundance",
         action="store_true",
         dest="save_abundance",
-        help="If specified, saves two files OUTPUT_FILENAME.isoform.normals and OUTPUT_FILENAME.isoform..exitrons to use in downstream LIQA differential expression analysis.",
-    )
-    parser.add_argument(
-        "-md",
-        "--meta_data",
-        action="store",
-        dest="meta_data",
-        help="If specified, metadata will be written to the file (default: %(default)s",
-        default=None,
-    )
-    parser.add_argument(
-        "-s",
-        "--stranded",
-        action="store",
-        dest="stranded",
-        help="Determines how read strand is inferred. Options are 'no', 'fr-firststrand', 'fr-secondstrand'.  If 'no' for unstranded reads, the XS tag will be used. Otherwise, strand will be inferred based on library prep. See https://chipster.csc.fi/manual/library-type-summary.html for details. (default: %(default)s",
-        type=str,
-        choices=['no', 'fr-firststrand','fr-secondstrand'],
-        default='no',
     )
     parser.add_argument(
         "-v", "--version", action="version", version="%(prog)s {}".format(__version__)
@@ -166,35 +162,13 @@ def parse_args():
 tab = str.maketrans("ACTG", "TGAC")
 def rc(seq):
     return seq.upper().translate(tab)[::-1]
-# No longer using config.ini
-
-# def config_getter(config_file='config.ini'):
-#     """
-
-
-#     Parameters
-#     ----------
-#     config_file : location of config file
-
-#     Returns
-#     -------
-#     dict : genome reference and annotation reference locations.
-
-#     """
-#     this_dir = os.path.dirname(os.path.realpath(__file__))
-#     config_default = os.path.join(this_dir, config_file)
-#     config = ConfigParser(os.environ)
-#     config.read(config_default)
-#     genome_ref = config.get("fasta", "genome")
-#     annotation_ref = config.get("sorted GENCODE annotation", "annotation")
-#     return genome_ref, annotation_ref
 
 
 #===============================================================================
 # Modules
 #===============================================================================
 
-def find_introns(read_iterator, stranded):
+def find_introns(read_iterator):
     """
 
     Parameters
@@ -208,14 +182,11 @@ def find_introns(read_iterator, stranded):
     introns -- counter of (intron_start, intron_end, strand)
     reads -- dictionary of reads that support the junctions in introns.  This
         will be used in later filtering steps.
-    meta_data -- dictionary consisting of metadata collected along the way.
-        This is used in later steps.
 
     """
     BAM_CREF_SKIP = 3
 
     introns = Counter()
-    meta_data = defaultdict(list)
     reads = defaultdict(list)
 
     match = {0, 7, 9} # only M/=/X (0/7/8) and D (2) are related to genome position
@@ -237,33 +208,23 @@ def find_introns(read_iterator, stranded):
                 junc_start = base_position
                 base_position += nt
                 junc_end = base_position
-                if stranded == 'no':
-                    try:
-                        if r.get_tag('ts') == '+':
-                            strand = '-' if r.is_reverse else '+'
-                        elif r.get_tag('ts') == '-':
-                            strand = '+' if r.is_reverse else '-'
-                    except KeyError:
-                        # ts tag is not present, thus we don't know strand, continue
-                        continue
-                    if r.cigartuples[i - 1][0] == 2: junc_start -= r.cigartuples[i - 1][1]
-                    if r.cigartuples[i + 1][0] == 2: junc_end += r.cigartuples[i + 1][1]
-                    introns[(junc_start, junc_end, strand)] += 1
-                    reads[(junc_start, junc_end, strand)].append(r.query_name)
-                else:
-                    if stranded == 'fr-firststrand':
-                        strand = '+' if (r.is_read2 and not r.is_reverse) or \
-                                        (r.is_read1 and r.is_reverse) else '-'
-                    elif stranded == 'fr-secondstrand':
-                        strand = '+' if (r.is_read1 and not r.is_reverse) or \
-                                        (r.is_read2 and r.is_reverse) else '-'
-                    introns[(junc_start, junc_end, strand)] += 1
-                    reads[(junc_start, junc_end, strand)].append(r.query_name)
+                try:
+                    if r.get_tag('ts') == '+':
+                        strand = '-' if r.is_reverse else '+'
+                    elif r.get_tag('ts') == '-':
+                        strand = '+' if r.is_reverse else '-'
+                except KeyError:
+                    # ts tag is not present, thus we don't know strand, continue
+                    continue
+                if r.cigartuples[i - 1][0] == 2: junc_start -= r.cigartuples[i - 1][1]
+                if r.cigartuples[i + 1][0] == 2: junc_end += r.cigartuples[i + 1][1]
+                introns[(junc_start, junc_end, strand)] += 1
+                reads[(junc_start, junc_end, strand)].append(r.query_name)
 
-    return introns, reads, meta_data
+    return introns, reads
 
 
-def exitron_caller(bamfile, referencename, chrm, db, arabidopsis = False, stranded = 'no', mapq = 50, jitter = 10):
+def exitron_caller(bamfile, referencename, chrm, db, arabidopsis = False, mapq = 50, jitter = 10):
     """
 
 
@@ -272,42 +233,22 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis = False, strand
     bamfile : pysam.AlignmentFile
     referencename : str
     chrms : list
+    db : gffulits.database
+    arabidopsis: bool
     mapq : int, optional
         Only considers reads from bamfile with quality >= mapq. The default is 50.
+    jitter : int
 
     Returns
     -------
     List of unfiltered exitrons.  Each exitron is a dictionary of features.
 
     """
-    # add jitter.  This will later be a parameter
-    # jitter = 10
 
-    # intron_bed = []
-
-    introns, reads, meta_data = find_introns(
-        (read for read in bamfile.fetch(chrm) if read.mapping_quality >= mapq),
-        stranded
+    introns, reads = find_introns(
+        (read for read in bamfile.fetch(chrm) if read.mapping_quality >= mapq)
         )
 
-    # for start, stop, strand in introns:
-    #     #-1 and +2 so that we can capture the ends and beginning of adjacent transcripts
-    #     #this allows us to determine whether there is a known donor or acceptor site
-    #     #in very rare cases, inron may be at pos 0, in which case jitter may cause overflow.
-    #     intron_bed.append((chrm, max(start - 1 - jitter, 0), max(stop + 1 + jitter + 1,0), introns[(start, stop, strand)], 0, strand))
-
-    # if not bool(introns):
-    #     # No introns were found.
-    #     return ([], reads, meta_data)
-
-    # intron_bed_file = pybedtools.BedTool(intron_bed)
-    # gtf_anno_sorted = pybedtools.BedTool(referencename)
-    # # To deal with memory issues and multi-processing, we require that annotation is sorted.
-    # # One line bash command: awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k4,4n -k5,5n"}' in.gtf > out_sorted.gtf
-    # intersection = gtf_anno_sorted.intersect(intron_bed_file.sort(), s = True, wo = True, sorted = True)
-
-    # del gtf_anno_sorted
-    # del intron_bed_file
     gtf = pysam.TabixFile(referencename, parser = pysam.asGTF())
     exitrons = []
     exitrons_added = []
@@ -381,16 +322,13 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis = False, strand
                                     e['transcript_id'] = transcript_id
                                     break
 
-        # del intersection
-
     return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices and
                                                  ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices)))],
-            reads,
-            meta_data)
+            reads)
 
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realign, mapq = 50, pso_min = 0.005, ao_min = 1, jitter = 10):
+def filter_exitrons(exitrons, reads, bamfile, genome, db, skip_realign, mapq = 50, pso_min = 0.01, ao_min = 1, cluster_purity = 0, jitter = 10):
     """
     Parameters
     ----------
@@ -401,9 +339,9 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
     bamfile : pysam.AlignmentFile
     genome : pysam.libcfaidx.FastaFile
         Random access to reference genome.
-    meta_data : dict
-    verbose : bool
-        If true, we report optional statistics
+    db : gffutils database
+    skip_realign : bool
+        If true, we skip realignment step
     mapq : TYPE, optional
         Only considers reads from bamfile with quality >= mapq. The default is 50.
         This is needed to calculate pso.
@@ -412,42 +350,26 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
         spliced out region. The default is 0.05.
     ao_min : int, optional
         Minimum number of reads witnessing the exitron. The default is 3.
-
-    pso_ufmin : float, optional
-        Number reads that witness the exitron over the number of reads within the
-        spliced out region, before filtering (used for backwards compatibility). The default is 0.05.
-    ao_ufmin : int, optional
-        Minimum number of reads witnessing the exitron, before filtering (used for
-        backwards compatibility). The default is 3.
-    anchor_min : int, optional
-        Minimum anchor length.  The default is 5.
+    jitter : int, optional
+        treats intron borders as fuzzy with +/- jitter
 
     Returns
     -------
-    filtered exitrons and meta data
+    List of filtered exitrons.  Each exitron is a dictionary of features.
     """
 
-    """
-    The Plan:
-
-        iterate through exitrons, finding clusters
-        i.e.: collect intervals that are +/- 10 away
-
-
-    """
     if not exitrons:
-        return [], meta_data
+        return []
 
     jitter = jitter*2
-    #Need to compute reverse complement for splice junctions.
-    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+    # Need to compute reverse complement for splice junctions.
     res = []
     groups = {'+':[],
               '-':[]}
     collection = {'+':[],
                   '-':[]}
 
-    # need to sort exitrons for the clustering algorithm
+    # Need to sort exitrons for the clustering algorithm
     exitrons.sort(key = lambda x: (x['start'], x['end']))
 
     # DEBUG: [(e['start'], e['end']) for e in exitrons]
@@ -493,7 +415,8 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                 consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
                                   key = lambda e: e['ao'])
                 tot_ao = sum(e['ao'] for e in group)
-                consensus_e['consensus_prop'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
+                consensus_e['cluster_purity'] = round(consensus_e['ao']/tot_ao, ndigits = 2)
+                if consensus_e['cluster_purity'] < cluster_purity: continue
                 consensus_e['ao'] = tot_ao
                 consensus_reads = ''
                 for e in group:
@@ -508,10 +431,6 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
             start = consensus_e['start']
             end = consensus_e['end']
             chrm = consensus_e['chrom']
-
-            if ao < ao_min:
-                meta_data['low_ao'].append(consensus_e)
-                continue
 
             # We subtract 1 because these coords are in BED format.
             mid = (start+end)/2
@@ -530,9 +449,6 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                 consensus_e['b'] = b
                 consensus_e['c'] = c
                 res.append(consensus_e)
-            else:
-                meta_data['low_pso'].append(consensus_e)
-
 
     # realignmnet may double count
     if not skip_realign and res:
@@ -588,57 +504,35 @@ def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, db, skip_realig
                                 exitron['pso'] = exitron['ao']/((exitron['a'] + exitron['b'] + exitron['c'] - exitron['ao']*3)/3.0 + exitron['ao'])
                                 called_reads += f',{read.query_name}'
 
-    # for group in groups['-']:
-    #     if not group:
-    #         break
-    #     # same but use reverse complement for splice-site
-    #     for e in group:
-    #         start = e['start']
-    #         end = e['end']
-    #         genome_seq = genome[e['chrom']][start:end - 1].upper()
-    #         right = "".join(complement.get(base, base) for base in reversed(genome_seq[:2]))
-    #         left = "".join(complement.get(base, base) for base in reversed(genome_seq[-2:]))
-    #         e['splice_site'] = left + '-' + right
-    #     try:
-    #         consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG','GC-AG','AT-AC']],
-    #                           key = lambda e: e['ao'])
-
-    #         consensus_e['ao'] = sum(e['ao'] for e in group)
-    #         processed_exitrons.append(consensus_e)
-    #     except:
-    #         pass # this occurs when there are no cannonical splice sites within group
-    # for exitron in processed_exitrons:
-    #     ao = exitron['ao']
-    #     start = exitron['start']
-    #     end = exitron['end']
-    #     chrm = exitron['chrom']
-
-    #     if ao < ao_min:
-    #         meta_data['low_ao'].append(exitron)
-    #         continue
-
-    #     # We subtract 1 because these coords are in BED format.
-    #     mid = (start+end)/2
-    #     a = bamfile.count(chrm, start = start - 1, stop = start, read_callback = lambda x: x.mapq > mapq)
-    #     b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
-    #     c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
-
-    #     pso = ao/((a + b + c - ao*3)/3.0 + ao)
-    #     psi = 1 - pso
-    #     dp = int(ao/pso) if pso > 0 else 0
-
-    #     # Check whether attributes exceed minimum values
-    #     if pso >= pso_min:
-    #         exitron['pso'] = pso
-    #         exitron['psi'] = psi
-    #         exitron['dp'] = dp
-    #         res.append(exitron)
-    #     else:
-    #         meta_data['low_pso'].append(exitron)
-    return res, meta_data
+    return res
 
 
 def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_fn, arabidopsis, cores):
+    """
+
+
+    Parameters
+    ----------
+    exitrons : list
+        list of filtered exitrons.
+    db : gffutils db file
+    bamfilename : str
+        bam filename.
+    tmp_path : str
+        temporary path
+    save_abundance : bool
+        if True, save abundance files
+    out_fn : str
+    arabidopsis : bool
+    cores : int
+        number of cores for bamfile indexing/sorting
+
+    Returns
+    -------
+    exitrons : list
+        mutates exitrons with transcript features.
+
+    """
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
 
     # construct new bamfile
@@ -658,6 +552,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     if save_abundance: tmp_bamfile_normals.close()
     bamfile.close()
 
+    # sort bamfiles and index
     pysam.sort('-@', str(cores), '-o', tmp_path + '/e_tmp_sorted.bam', tmp_path + '/e_tmp.bam')
     if save_abundance: pysam.sort('-o', tmp_path + '/n_tmp_sorted.bam', tmp_path + '/n_tmp.bam')
     pysam.index(tmp_path + '/e_tmp_sorted.bam')
@@ -675,7 +570,6 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
                     f.write('\t'.join(region) + '\n')
                 elif not arabidopsis:
                     f.write(str(region) + '\n')
-
 
     # run liqa to create refgene
     subprocess.run(['liqa',
@@ -705,7 +599,6 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
                     '0'])
     if save_abundance:
         # run liqa to quantify isoform expression
-
         jitter = 10 #TODO make this an argument
         subprocess.run(['liqa',
                         '-task',
@@ -740,155 +633,12 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     return exitrons
 
 
-# for reference, here is the short read version:
-
-# def filter_exitrons(exitrons, reads, bamfile, genome, meta_data, verbose, mapq = 50, pso_min = 0.005, ao_min = 1, pso_ufmin = 0, ao_ufmin = 0, anchor_min = 5):
-#     """
-#     Parameters
-#     ----------
-#     exitrons : list
-#         list of unfiltered exitrons from exitron_caller.
-#     reads : dict
-#         Each intron is a key, and the value is list of (read_seq, ref_seq, left_anchor, right_anchor)
-#     bamfile : pysam.AlignmentFile
-#     genome : pysam.libcfaidx.FastaFile
-#         Random access to reference genome.
-#     meta_data : dict
-#     verbose : bool
-#         If true, we report optional statistics
-#     mapq : TYPE, optional
-#         Only considers reads from bamfile with quality >= mapq. The default is 50.
-#         This is needed to calculate pso.
-#     pso_min : float, optional
-#         Number reads that witness the exitron over the number of reads within the
-#         spliced out region. The default is 0.05.
-#     ao_min : int, optional
-#         Minimum number of reads witnessing the exitron. The default is 3.
-
-#     pso_ufmin : float, optional
-#         Number reads that witness the exitron over the number of reads within the
-#         spliced out region, before filtering (used for backwards compatibility). The default is 0.05.
-#     ao_ufmin : int, optional
-#         Minimum number of reads witnessing the exitron, before filtering (used for
-#         backwards compatibility). The default is 3.
-#     anchor_min : int, optional
-#         Minimum anchor length.  The default is 5.
-
-#     Returns
-#     -------
-#     filtered exitrons and meta data
-#     """
-#     #Need to compute reverse complement for splice junctions.
-#     complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
-#     res = []
-
-#     # filter one exitron at a time
-#     for exitron in exitrons:
-#         chrm = exitron['chrom']
-#         ao = exitron['ao']
-#         start = exitron['start']
-#         end = exitron['end']
-#         strand = exitron['strand']
-
-#         if ao < ao_ufmin:
-#             continue #not enough unfiltered reads support this exitron
-#         read_data = reads[(start, end - 1, strand)]
-
-#         genome_seq = genome[chrm][start-10:end - 1+10].upper()
-#         intron_seq = genome_seq[10:-10]
-
-
-#         if strand == '+':
-#             splice_site = intron_seq[:2] + '-' + intron_seq[-2:]
-#             motif = genome_seq[:10] + '|' + splice_site[:2] + '-' + splice_site[-2:] + '|' + genome_seq[-10:]
-#         elif strand == '-':
-#             left = "".join(complement.get(base, base) for base in reversed(intron_seq[-2:]))
-#             right = "".join(complement.get(base, base) for base in reversed(intron_seq[:2]))
-#             splice_site = left + '-' + right
-#             rgs = "".join(complement.get(base, base) for base in reversed(genome_seq[:10]))
-#             lgs = "".join(complement.get(base, base) for base in reversed(genome_seq[-10:]))
-#             motif = lgs + '|' + splice_site[:2] + '-' + splice_site[-2:] + '|' + rgs
-
-#         exitron['splice_site'] = splice_site
-#         if verbose:
-#             exitron['splice_motif'] = motif
-
-#         if splice_site.upper() not in ['GT-AG','GC-AG','AT-AC']:
-#             meta_data['non_canonical'].append(exitron)
-#             continue
-
-#         right_anchor = (0,'')
-#         left_anchor = (0,'')
-#         ao_true = 0
-#         for read in read_data:
-
-#             l_anchor_len = read[1]
-#             r_anchor_len = read[2]
-
-#             # check 5' intron and 3' exon similarity
-#             three_prime_exon_r = read[0][read[3]:read[3] + r_anchor_len]
-#             five_prime_intron_r = intron_seq[:len(three_prime_exon_r)]
-#             # check 5' exon and 3' intron similarity
-#             five_prime_exon_r =  read[0][read[3] - l_anchor_len:read[3]]
-#             three_prime_intron_r = intron_seq[-len(five_prime_exon_r):]
-
-#             if three_prime_exon_r != five_prime_intron_r and five_prime_exon_r != three_prime_intron_r:
-#                 ao_true += 1
-
-
-#         if ao_true == 0 and ao_min > 0:
-#             exitron['ao_unfiltered'] = ao
-#             meta_data['no_anchors_after_filtering'].append(exitron)
-#             continue
-
-#         # We subtract 1 because these coords are in BED format.
-#         mid = (start+end)/2
-#         a = bamfile.count(chrm, start = start - 1, stop = start, read_callback = lambda x: x.mapq > mapq)
-#         b = bamfile.count(chrm, start = end - 1, stop = end, read_callback = lambda x: x.mapq > mapq)
-#         c = bamfile.count(chrm, start = mid - 1, stop = mid, read_callback = lambda x: x.mapq > mapq)
-
-
-#         pso = ao/((a + b + c - ao*3)/3.0 + ao)
-#         psi = 1 - pso
-#         dp = int(ao/pso) if pso > 0 else 0
-
-#         pso_true = ao_true/((a + b + c - ao_true*3)/3.0 + ao_true)
-#         psi_true = 1 - pso_true
-#         dp_true = int(ao_true/pso_true) if pso_true > 0 else 0
-
-#         # Check whether attributes exceed minimum values
-#         if (pso >= pso_ufmin and
-#             pso_true >= pso_min and
-#             ao_true >= ao_min):
-
-#             exitron['ao'] = ao_true
-#             exitron['pso'] = pso_true
-#             exitron['psi'] = psi_true
-#             exitron['dp'] = dp_true
-
-#             exitron['ao_unfiltered'] = ao
-#             exitron['pso_unfiltered'] = pso
-#             exitron['psi_unfiltered'] = psi
-#             exitron['dp_unfiltered'] = dp
-
-#             exitron['delta_ao'] = ao - ao_true
-
-
-#             left_anchor = max(read_data, key = lambda x: x[1])
-#             right_anchor = max(read_data, key = lambda x: x[2])
-#             if left_anchor[2] < anchor_min or right_anchor[3] < anchor_min:
-#                 meta_data['low_anchor_exitron'].append(exitron)
-#             else:
-#                 res.append(exitron)
-#     return res, meta_data
-
-
 #===============================================================================
 # Main
 #===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, jitter, stranded, skip_realign, arabidopsis):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, cluster_purity, jitter, skip_realign, arabidopsis):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -896,28 +646,28 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
     sys.stdout.flush()
     bamfile = pysam.AlignmentFile(bamfilename, 'rb', require_index = True)
     db = gffutils.FeatureDB(referencename + '.db')
-    exitrons, reads, meta_data  = exitron_caller(bamfile,
+    exitrons, reads  = exitron_caller(bamfile,
                               referencename,
                               chrm,
                               db,
                               arabidopsis,
-                              stranded,
                               mapq,
                               jitter)
-    exitrons, meta_data = filter_exitrons(exitrons,
+    exitrons = filter_exitrons(exitrons,
                     reads,
                     bamfile,
                     genomename,
-                    meta_data,
                     db,
                     skip_realign,
                     mapq,
                     pso_min,
-                    ao_min)
+                    ao_min,
+                    cluster_purity,
+                    jitter)
     bamfile.close()
     del db
 
-    return exitrons, meta_data, chrm
+    return exitrons, chrm
 
 def main(tmp_path):
     # Get arguments
@@ -930,8 +680,6 @@ def main(tmp_path):
         'chr21', 'chr22', 'chrX', 'chrY'] if not args.arabidopsis else \
         ['Chr1', 'Chr2', 'Chr3', 'Chr4',
          'Chr5', 'ChrM', 'Chrchloroplast']
-
-    # genome_ref, annotation_ref = config_getter('config.ini') # no longer using config.ini
 
     # Check if bamfile can be opened and there is an index.
     try:
@@ -984,19 +732,14 @@ def main(tmp_path):
 
     # Begin exitron calling
     global results
-    global meta_data_out
     results = {}
-    meta_data_out = defaultdict(list)
 
     def collect_result(output):
         exitrons = output[0]
-        meta_data_result = output[1]
-        chrm = output[2]
+        chrm = output[1]
         print(f'Collecting data from {chrm}')
         sys.stdout.flush()
         results[chrm] = exitrons
-        for key in meta_data_result:
-            meta_data_out[key] = [item for item in meta_data_result[key]]
 
     if int(args.cores) > 1:
         pool = mp.Pool(int(args.cores))
@@ -1009,8 +752,8 @@ def main(tmp_path):
                                                         args.mapq,
                                                         args.pso_min,
                                                         args.ao_min,
+                                                        args.cluster_purity,
                                                         args.jitter,
-                                                        args.stranded,
                                                         args.skip_realign,
                                                         args.arabidopsis), callback = collect_result))
         pool.close()
@@ -1027,8 +770,8 @@ def main(tmp_path):
                                         args.mapq,
                                         args.pso_min,
                                         args.ao_min,
+                                        args.cluster_purity,
                                         args.jitter,
-                                        args.stranded,
                                         args.skip_realign,
                                         args.arabidopsis)
             collect_result(output)
@@ -1068,7 +811,7 @@ def main(tmp_path):
                   'transcript_id',
                   'pso',
                   'dp',
-                  'consensus_prop',
+                  'cluster_purity',
                   'reads']
         #write header
         for column in header:
@@ -1079,26 +822,7 @@ def main(tmp_path):
                 out.write(str(exitron[column]) + '\t')
             out.write('\n')
 
-    if args.meta_data:
-        with open(args.meta_data, 'w') as out:
-            out.write('Non-canonical exitrons:\n')
-            for exitron in meta_data_out['non_canonical']:
-                for key in exitron:
-                    out.write(str(exitron[key])+ '\t')
-                out.write('\n')
-            out.write('\nExitrons that had no anchors after filtering:\n')
-            for exitron in meta_data_out['no_anchors_after_filtering']:
-                for key in exitron:
-                    out.write(str(exitron[key])+ '\t')
-                out.write('\n')
-            out.write('\nExitrons that were filtered due to low anchor length:\n')
-            for exitron in meta_data_out['low_anchor_exitron']:
-                for key in exitron:
-                    out.write(str(exitron[key])+ '\t')
-                out.write('\n')
-
     # Clear tmp directory
-    pybedtools.helpers.cleanup(remove_all=True)
     rmtree(tmp_path)
 
 
@@ -1108,7 +832,6 @@ if __name__ == '__main__':
     tmp_path = os.path.join(this_dir, f'scanexitron_tmp{os.getpid()}')
     try: os.mkdir(tmp_path)
     except FileExistsError: pass
-    pybedtools.helpers.set_tempdir(tmp_path)
     main(tmp_path)
     # try:
     #     main(tmp_path)
