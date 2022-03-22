@@ -10,13 +10,13 @@ First, it is necessary to download a specifically formated version of TAIR10 ref
 
 **STEP 1:** Enter the directory you have downloaded the BAM and TAIR files and run ScanExitronLR with the following command:
 
-    selr extract -i ara_example_1.bam -g TAIR10.fas -r TAIR10_GFF3_sorted.gff -sa -aradopsis
+    selr extract -i ara_example_1.bam -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -sa -arabidopsis
 
 The `-sa` flag tells ScanExitronLR to save the abundances for downstream analysis.  The `-aradopsis` runs ScanExitronLR in *Aradopsis* mode. If the flag is not set and *Aradopsis* alignments are used, you will get a `contig not found` error.
 
 Run the same command for the second example:
 
-    selr extract -i ara_example_2.bam -g TAIR10.fas -r TAIR10_GFF3_sorted.gff -sa -aradopsis
+    selr extract -i ara_example_2.bam -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -sa -arabidopsis
 
 **STEP 2:** You will now have two exitron files, `ara_example_1.exitron` and  `ara_example_2.exitron`. In addition, because we saved the abundances, you should also have the files
 

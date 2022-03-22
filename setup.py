@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="scanexitronlr",
-    version="1.1.1",
+    version="1.1.3",
     author="Josh Fry",
     author_email="fryxx094@umn.edu",
     description="ScanExitronLR: a lightweight tool for the characterization and quantification of exitrons in long read RNA-seq data",
@@ -22,7 +22,8 @@ setuptools.setup(
     python_requires='>=3.7',
     packages=["src"],
     package_dir={"src":"src"},
-    include_package_data=True,
+    #include_package_data=True,
+    package_data={'': ['*.tsv']},
     entry_points={
         "console_scripts": [
             "selr=src.__main__:main",

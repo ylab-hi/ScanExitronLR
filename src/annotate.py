@@ -3,7 +3,7 @@
 """
 @author: Josh Fry @YangLab, Hormel Institute, UMN
 """
-__version__ = 'v1.1.1'
+__version__ = 'v1.1.3'
 import os
 import sys
 import gffutils
@@ -181,7 +181,7 @@ def get_nmd_status(exitron, frameshift_pos, bamfile):
                            50 for x in map(lambda x: x[0], ej_pos))
                 tot += 1
 
-    return (nmd, tot)
+    return nmd, tot
 
 
 def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
@@ -379,7 +379,7 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
         frameshift_prot = frameshift_seq.translate(to_stop=True)
         frameshift_pos = seq_pos[start_codon_pos + len(frameshift_prot)*3 - 1]
         nmd, tot = get_nmd_status(
-            exitron, frameshift_pos,  bamfile) if bamfile else -1, -1
+            exitron, frameshift_pos,  bamfile) if bamfile else (-1, -1)
 
         dna_seq = seq[start_codon_pos:start_codon_pos +
                       len(frameshift_prot)*3 + 3]
@@ -495,10 +495,7 @@ def get_pfam_domains(exitron, prot_df):
 # =============================================================================
 
 
-def main(tmp_path):
-    # Get arguments
-    args = parse_args()
-
+def main(args):
     # Check to see if bamfile can be opened and there is an index.
     if args.bam_file:
         try:
@@ -595,19 +592,13 @@ def main(tmp_path):
 
 
 if __name__ == '__main__':
-    # Set tmp directory
-    this_dir = os.getcwd()
-    tmp_path = os.path.join(this_dir, f'scanexitron_tmp{os.getpid()}')
+    # Get arguments
+    args = parse_args()
     try:
-        os.mkdir(tmp_path)
-    except FileExistsError:
-        pass
-    try:
-        main(tmp_path)
+        main(args)
     except Exception as e:
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")
         else:
             traceback.print_tb(e.__traceback__)
-        rmtree(tmp_path)
         sys.exit(1)

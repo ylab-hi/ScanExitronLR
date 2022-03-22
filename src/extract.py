@@ -6,7 +6,7 @@
 # ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 # ===============================================================================
-__version__ = 'v1.1.1'
+__version__ = 'v1.1.3'
 import sys
 import os
 import argparse
@@ -736,6 +736,7 @@ def main(tmp_path, args):
         except FileNotFoundError:
             print(
                 f'ERROR: There is a problem opening bam file at: {args.input}')
+            rmtree(tmp_path)
             sys.exit(1)
     bamfile.close()
 
@@ -751,17 +752,21 @@ def main(tmp_path, args):
         print(
             f'ERROR: There is a problem reading the annotation file at: {args.annotation_ref}')
         print(f'Please make sure to use bgzip to compress your annotation file.')
+        rmtree(tmp_path)
+        sys.exit(1)
 
     # Check if LIQA is available
     try:
         subprocess.run(['liqa'], capture_output=True)
     except FileNotFoundError:
         print('ERROR: Unable to locate LIQA. Please install with "pip install liqa"')
+        rmtree(tmp_path)
         sys.exit(1)
 
     # Check for gziped annotation
     if args.annotation_ref[-2:] != 'gz':
         print('ERROR: Annotation file is required to be zipped in .gz format. Please compress your GTF/GFF file with a command such as: gzip -c in.gtf > out.gtf.gz')
+        rmtree(tmp_path)
         sys.exit(1)
 
     # Prepage gffutils database
