@@ -23,7 +23,7 @@ To test your installation, run:
 selr
 ```
 
-You should see the version number, usage instructions and commands.
+You should see the version number, usage instructions and commands. (If you prefer a more descriptive command `scanexitronlr` also works.)
 
 # Usage
 ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when calling exitrons in an alignment and `annotate` when annotating exitrons called using `extract`.
