@@ -6,7 +6,7 @@
 # ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 # ===============================================================================
-__version__ = 'v1.0'
+__version__ = 'v1.1.1'
 import sys
 import os
 import argparse
@@ -715,9 +715,7 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
     return exitrons, chrm
 
 
-def main(tmp_path):
-    # Get arguments
-    args = parse_args()
+def main(tmp_path, args):
     # Define chrms
     chrms = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5',
              'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
@@ -891,6 +889,8 @@ def main(tmp_path):
 
 
 if __name__ == '__main__':
+    # Get arguments
+    args = parse_args()
     # Set tmp directory
     this_dir = os.getcwd()
     tmp_path = os.path.join(this_dir, f'scanexitron_tmp{os.getpid()}')
@@ -899,7 +899,7 @@ if __name__ == '__main__':
     except FileExistsError:
         pass
     try:
-        main(tmp_path)
+        main(tmp_path, args)
     except Exception as e:
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")

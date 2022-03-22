@@ -3,7 +3,7 @@
 """
 @author: Josh Fry @YangLab, Hormel Institute, UMN
 """
-__version__ = 'v1.0'
+__version__ = 'v1.1.1'
 import os
 import sys
 import gffutils
@@ -571,8 +571,10 @@ def main(tmp_path):
                 res, dna, prot = categorize_exitron(
                     exitron.copy(), t_id, bamfile, db, args.genome_ref, args.arabidopsis)
                 if args.fasta and dna and prot:
-                    dna_seqs.append(SeqRecord(dna, id = f"{exitron['gene_name']}_{t_id}", description = exitron['name']))
-                    prot_seqs.append(SeqRecord(prot, id = f"{exitron['gene_name']}_{t_id}", description = exitron['name']))
+                    dna_seqs.append(SeqRecord(
+                        dna, id=f"{exitron['gene_name']}_{t_id}", description=exitron['name']))
+                    prot_seqs.append(SeqRecord(
+                        prot, id=f"{exitron['gene_name']}_{t_id}", description=exitron['name']))
                 # idetnify pfam domains
                 if res['exitron_prot_position'] != '.':
                     get_pfam_domains(res, prot_df)
@@ -590,6 +592,7 @@ def main(tmp_path):
         input_fn = '.'.join(input_fn)
         SeqIO.write(dna_seqs, f'{input_fn}_dna_exitrons.fa', 'fasta')
         SeqIO.write(prot_seqs, f'{input_fn}_prot_exitrons.fa', 'fasta')
+
 
 if __name__ == '__main__':
     # Set tmp directory

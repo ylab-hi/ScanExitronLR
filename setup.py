@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="selr",
-    version="1.0",
+    name="scanexitronlr",
+    version="1.1.1",
     author="Josh Fry",
     author_email="fryxx094@umn.edu",
     description="ScanExitronLR: a lightweight tool for the characterization and quantification of exitrons in long read RNA-seq data",
@@ -26,6 +26,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "selr=src.__main__:main",
+            "scanexitronlr=src.__main__:main"
         ]
     },
 )

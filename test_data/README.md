@@ -62,7 +62,7 @@ We see that exitrons occur predominantly in the AT2G26030.2 transcript in both r
 
 ## Annotation
 
-	-i ara_example_1.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_1.bam -fasta -arabidopsis
+	selr annotate -i ara_example_1.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_1.bam -fasta -arabidopsis
 
-	-i ara_example_2.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_2.bam -fasta -arabidopsis
+	selr annotate -i ara_example_2.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_2.bam -fasta -arabidopsis
 

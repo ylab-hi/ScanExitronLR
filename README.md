@@ -10,11 +10,11 @@ A computational workflow for exitron splicing identification in long-read RNA-se
 The recommended way to install `ScanExitronLR` is using [pip](https://pip.pypa.io/en/stable/):
 
 ```bash
-pip install selr
+pip install scanexitronlr 
 ```
 This will pull and install the latest stable release from [PyPi](https://pypi.org/). ScanExitronLR requires Python 3.7+. Thus you need to make sure that the `pip` is for python3 using e.g. `which pip` or using: 
 ```bash 
-pip3 install selr
+pip3 install scanexitronlr
 ```
 
 To test your installation, run:

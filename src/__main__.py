@@ -5,28 +5,33 @@ Created on Wed Mar 16 20:44:36 2022
 
 @author: jpfry
 """
-__version__ = 'v.2'
-import os, sys, subprocess
+__version__ = 'v1.1.1'
+import os
+import sys
+import subprocess
+
 
 def main():
 
     file_abs_path = os.path.abspath(os.path.dirname(__file__))
-    crtAbsPath = os.getcwd()
 
     try:
         task = sys.argv[1]
         if task not in ['extract', 'annotate']:
-            if task not in ['-v', '--version']: print(f'\nERROR: Unknown usage.')
+            if task not in ['-v', '--version']:
+                print(f'\nERROR: Unknown usage.')
             raise ValueError
         else:
             if task == 'extract':
                 print('\n')
                 args = sys.argv[2:]
-                subprocess.run(['python', 'extract.py'] + args, check = True)
+                subprocess.run(
+                    ['python', f'{file_abs_path}/extract.py'] + args, check=True)
             elif task == 'annotate':
                 print('\n')
                 args = sys.argv[2:]
-                subprocess.run(['python', 'annotate.py'] + args, check = True)
+                subprocess.run(
+                    ['python', f'{file_abs_path}/annotate.py'] + args, check=True)
     except:
         print(f'\nProgram:\tScanExitronLR')
         print(f'Version:\t{__version__}')
