@@ -1,7 +1,7 @@
 # ScanExitronLR
 
 
-A computational workflow for exitron splicing identification in short-read RNAseq data
+A computational workflow for exitron splicing identification in long-read RNA-seq data.
 <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type.png#gh-light-mode-only">
 <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type_dark.png#gh-dark-mode-only">
 
