@@ -2,19 +2,21 @@
 
 In this example, you will run ScanExitronLR on two small bam files from _Aradopsis thaliana_ and find a specific transcript enriched in exitrons. They are two technical replicates from the floral bud ([NCBI accession PRJNA605023](https://www.ncbi.nlm.nih.gov/bioproject?LinkName=biosample_bioproject&from_uid=14008366)). 
 
+Please download the example bam files [here](https://drive.google.com/drive/folders/1JHY2dqf6O5QgOAJpALhBh2iAquf3EY7O?usp=sharing) or from this github page.
+
 ## Running ScanExitron
 
-First, it is necessary to download a specifically formated version of TAIR10 reference genome and annotation, [which can be found here.](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) This includes a sorted GFF file and a GFF database (with the '.db' extension).  ScanExitron will create such a database if none is found, but downloading it here will save time. We require that the GFF annotation file is sorted for speed and memory efficiency. This example will assume you have downloaded these files in the ScanExitronLR/data folder.
+First, it is necessary to download a specifically formated version of TAIR10 reference genome and annotation, [which can be found here.](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) This includes a sorted GFF file and a GFF database (with the '.db' extension).  ScanExitron will create such a database if none is found, but downloading it here will save time. We require that the GFF annotation file is sorted for speed and memory efficiency. This example will assume you have downloaded these files and have them in the current working directory folder.
 
-**STEP 1:** Enter the ScanExitronLR directory and run ScanExitronLR with the following command:
+**STEP 1:** Enter the directory you have downloaded the BAM and TAIR files and run ScanExitronLR with the following command:
 
-    selr extract -i test_data/ara_example_1.bam -g data/TAIR10.fas -r data/TAIR10_GFF3_sorted.gff -sa -aradopsis
+    selr extract -i ara_example_1.bam -g TAIR10.fas -r TAIR10_GFF3_sorted.gff -sa -aradopsis
 
 The `-sa` flag tells ScanExitronLR to save the abundances for downstream analysis.  The `-aradopsis` runs ScanExitronLR in *Aradopsis* mode. If the flag is not set and *Aradopsis* alignments are used, you will get a `contig not found` error.
 
 Run the same command for the second example:
 
-    selr extract -i test_data/ara_example_2.bam -g data/TAIR10.fas -r data/TAIR10_GFF3_sorted.gff -sa -aradopsis
+    selr extract -i ara_example_2.bam -g TAIR10.fas -r TAIR10_GFF3_sorted.gff -sa -aradopsis
 
 **STEP 2:** You will now have two exitron files, `ara_example_1.exitron` and  `ara_example_2.exitron`. In addition, because we saved the abundances, you should also have the files
 
@@ -57,3 +59,10 @@ The second column is a p-value. We see that isoforms in the gene `AT2G26030`  ar
     ara_example_2.isoform.normals:AT2G26030	AT2G26030.1	9.42832949331255	0.8571208630284136	0.6363636363636364
 
 We see that exitrons occur predominantly in the AT2G26030.2 transcript in both replicates, while AT2G26030.1 is the predominant transcript in reads without exitrons--the fourth column reports relative abundance. 
+
+## Annotation
+
+	-i ara_example_1.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_1.bam -fasta -arabidopsis
+
+	-i ara_example_2.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_2.bam -fasta -arabidopsis
+

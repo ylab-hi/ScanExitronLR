@@ -12,6 +12,8 @@ import argparse
 import subprocess
 import traceback
 import pandas as pd
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from shutil import rmtree
 
@@ -74,8 +76,15 @@ def parse_args():
     )
     parser.add_argument(
         "-arabidopsis",
+        "--arabidopsis",
         action="store_true",
         dest="arabidopsis",
+    )
+    parser.add_argument(
+        "-fasta",
+        "--fasta",
+        action="store_true",
+        dest="fasta",
     )
     parser.add_argument(
         "-v", "--version", action="version", version="%(prog)s {}".format(__version__)
@@ -392,7 +401,7 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
             seq[start_codon_pos + len(frameshift_prot)*3 + 3:] + n_adjust).translate()
         exitron['start_proximal_PTC'] = exitron_pos <= 200
 
-        return exitron, str(dna_seq), str(frameshift_prot) + '*'
+        return exitron, dna_seq, frameshift_prot + '*'
 
     # exitron is truncated + substitution iff (exitron_pos - 1) % 3 != 0
     elif (exitron_pos - 1) % 3 != 0:
@@ -426,8 +435,8 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
         exitron['start_proximal_PTC'] = '.'
 
         return (exitron,
-                str(seq[start_codon_pos:stop_codon_pos+3]),
-                str(seq[start_codon_pos:stop_codon_pos+3].translate()))
+                seq[start_codon_pos:stop_codon_pos+3],
+                seq[start_codon_pos:stop_codon_pos+3].translate())
     # otherwise, exitron is truncation
     else:
 
@@ -440,8 +449,8 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
         exitron['start_proximal_PTC'] = '.'
 
         return (exitron,
-                str(seq[start_codon_pos:stop_codon_pos+3]),
-                str(seq[start_codon_pos:stop_codon_pos+3].translate()))
+                seq[start_codon_pos:stop_codon_pos+3],
+                seq[start_codon_pos:stop_codon_pos+3].translate())
 
 
 def get_pfam_domains(exitron, prot_df):
@@ -518,6 +527,10 @@ def main(tmp_path):
     if not args.out:
         args.out = args.input + '.annotated'
 
+    if args.fasta:
+        dna_seqs = []
+        prot_seqs = []
+
     with open(args.out, 'w') as out:
         header = ['chrom',
                   'start',
@@ -533,7 +546,7 @@ def main(tmp_path):
                   'transcript_id',
                   'pso',
                   'dp',
-                  'consensus_prop',
+                  'cluster_purity',
                   'exitron_prot_position',
                   'type',
                   'substitution',
@@ -546,8 +559,8 @@ def main(tmp_path):
         for column in header:
             out.write(column + '\t')
         out.write('\n')
-        prot_df = pd.read_csv('data/human_pfam.tsv', delimiter='\t') if not args.arabidopsis else pd.read_csv(
-            'data/arabidopsis_pfam.tsv', delimiter='\t')
+        prot_df = pd.read_csv(f'{os.path.dirname(os.path.realpath(__file__))}/human_pfam.tsv', delimiter='\t') if not args.arabidopsis else pd.read_csv(
+            f'{os.path.dirname(os.path.realpath(__file__))}/arabidopsis_pfam.tsv', delimiter='\t')
         exitrons = read_exitron_file(args.input)
         for exitron in exitrons:
             transcripts = exitron['transcript_id'].split(';')
@@ -555,9 +568,11 @@ def main(tmp_path):
                 t_id = transcript.split(',')[0]
                 abundance = transcript.split(',')[1]
                 # dna / prot seq output not yet implemented
-                res, _, _ = categorize_exitron(
+                res, dna, prot = categorize_exitron(
                     exitron.copy(), t_id, bamfile, db, args.genome_ref, args.arabidopsis)
-
+                if args.fasta and dna and prot:
+                    dna_seqs.append(SeqRecord(dna, id = f"{exitron['gene_name']}_{t_id}", description = exitron['name']))
+                    prot_seqs.append(SeqRecord(prot, id = f"{exitron['gene_name']}_{t_id}", description = exitron['name']))
                 # idetnify pfam domains
                 if res['exitron_prot_position'] != '.':
                     get_pfam_domains(res, prot_df)
@@ -570,10 +585,15 @@ def main(tmp_path):
                     out.write(str(res[column]) + '\t')
                 out.write('\n')
 
+    if args.fasta:
+        input_fn = args.input.split('.')[:-1]
+        input_fn = '.'.join(input_fn)
+        SeqIO.write(dna_seqs, f'{input_fn}_dna_exitrons.fa', 'fasta')
+        SeqIO.write(prot_seqs, f'{input_fn}_prot_exitrons.fa', 'fasta')
 
 if __name__ == '__main__':
     # Set tmp directory
-    this_dir = os.path.dirname(os.path.realpath(__file__))
+    this_dir = os.getcwd()
     tmp_path = os.path.join(this_dir, f'scanexitron_tmp{os.getpid()}')
     try:
         os.mkdir(tmp_path)

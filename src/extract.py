@@ -892,7 +892,7 @@ def main(tmp_path):
 
 if __name__ == '__main__':
     # Set tmp directory
-    this_dir = os.path.dirname(os.path.realpath(__file__))
+    this_dir = os.getcwd()
     tmp_path = os.path.join(this_dir, f'scanexitron_tmp{os.getpid()}')
     try:
         os.mkdir(tmp_path)
