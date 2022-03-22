@@ -61,8 +61,14 @@ The second column is a p-value. We see that isoforms in the gene `AT2G26030`  ar
 We see that exitrons occur predominantly in the AT2G26030.2 transcript in both replicates, while AT2G26030.1 is the predominant transcript in reads without exitrons--the fourth column reports relative abundance. 
 
 ## Annotation
+You can also annotate the exitrons with the following commands:
+
 
 	selr annotate -i ara_example_1.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_1.bam -fasta -arabidopsis
 
 	selr annotate -i ara_example_2.exitron -g TAIR10.fas -r TAIR10_GFF3_sorted.gff.gz -b ara_example_2.bam -fasta -arabidopsis
+
+If you inspect the second example, you will see that the 90 length exitron in AT2G26030 is a truncation plus substitution, though no amino acid was changed because the same amino acid happened to be substituted (G->G).
+
+	Chr2	11092582	11092673	AT2G26030d11092582-11092673	CDS	2	-	AT2G26030	AT2G26030	90	GT-AG	AT2G26030.2,0.9998	0.1176	17	0.5	36	truncated+substitution	G->G	.	.	.	.	.	,SRR11031291.368547,SRR11031291.947060
 
