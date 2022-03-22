@@ -2,9 +2,8 @@
 
 
 A computational workflow for exitron splicing identification in short-read RNAseq data
-<p align="center">
-<img align="center" width="400" src="SELR_flowchart.png">
-</p>
+<img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type.png#gh-light-mode-only">
+<img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type_dark.png#gh-dark-mode-only">
 
 # Installation
 The recommended way to install `ScanExitronLR` is using [pip](https://pip.pypa.io/en/stable/):
