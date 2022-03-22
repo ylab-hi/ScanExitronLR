@@ -16,9 +16,9 @@ from Bio.Seq import Seq
 from shutil import rmtree
 
 
-#===============================================================================
+# ===============================================================================
 # Helper Methods
-#===============================================================================
+# ===============================================================================
 
 def parse_args():
     usage = """
@@ -33,7 +33,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(
         description="annotate",
-        usage = usage
+        usage=usage
     )
     parser.add_argument(
         "-i",
@@ -84,7 +84,6 @@ def parse_args():
     return args
 
 
-
 def read_exitron_file(filename):
     """
 
@@ -111,10 +110,9 @@ def read_exitron_file(filename):
     return exitrons
 
 
-#=============================================================================
+# =============================================================================
 # Modules
-#=============================================================================
-
+# =============================================================================
 
 
 def get_nmd_status(exitron, frameshift_pos, bamfile):
@@ -141,7 +139,8 @@ def get_nmd_status(exitron, frameshift_pos, bamfile):
     nmd = 0
     tot = 0
 
-    match_or_deletion = {0, 2, 7, 8} # only M/=/X (0/7/8) and D (2) are related to genome position
+    # only M/=/X (0/7/8) and D (2) are related to genome position
+    match_or_deletion = {0, 2, 7, 8}
     BAM_CREF_SKIP = 3
 
     for read in bamfile.fetch(exitron['chrom'], int(exitron['start']), int(exitron['end'])):
@@ -164,13 +163,14 @@ def get_nmd_status(exitron, frameshift_pos, bamfile):
                     base_position += nt
                     ej_pos.append((junc_start, base_position))
             if exitron['strand'] == '+':
-                nmd += any(x > frameshift_pos + 50 for x in map(lambda x: x[0], ej_pos))
+                nmd += any(x > frameshift_pos +
+                           50 for x in map(lambda x: x[0], ej_pos))
                 tot += 1
 
             else:
-                nmd += any(x < frameshift_pos - 50 for x in map(lambda x: x[0], ej_pos))
+                nmd += any(x < frameshift_pos -
+                           50 for x in map(lambda x: x[0], ej_pos))
                 tot += 1
-
 
     return (nmd, tot)
 
@@ -213,11 +213,13 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
     try:
         if not arabidopsis:
             try:
-                start_codon = next(db.children(db[transcript], featuretype = ['start_codon']))
-                stop_codon = next(db.children(db[transcript], featuretype = ['stop_codon']))
+                start_codon = next(db.children(
+                    db[transcript], featuretype=['start_codon']))
+                stop_codon = next(db.children(
+                    db[transcript], featuretype=['stop_codon']))
                 start_codon_start = start_codon.start
                 stop_codon_start = stop_codon.start
-            except StopIteration: # this occurs when the annotation does not provide a start/stop codon
+            except StopIteration:  # this occurs when the annotation does not provide a start/stop codon
                 # see tags 'mRNA_start_NF', 'cds_start_NF' etc
                 # this is why we do not infer start and stop codons in human annotation
                 # some transcripts explicitly leave them out to indicate that the transcript
@@ -225,11 +227,15 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
                 return None, None, None, None, None, None, None
         else:
             if strand == '+':
-                start_codon_start = next(db.children(db[transcript], featuretype = ['CDS'])).start
-                stop_codon_start = next(db.children(db[transcript], featuretype = ['CDS'], order_by='start', reverse = True)).start
+                start_codon_start = next(db.children(
+                    db[transcript], featuretype=['CDS'])).start
+                stop_codon_start = next(db.children(db[transcript], featuretype=[
+                                        'CDS'], order_by='start', reverse=True)).start
             else:
-                start_codon_start = next(db.children(db[transcript], featuretype = ['CDS'], order_by='start', reverse = True)).end - 2
-                stop_codon_start = next(db.children(db[transcript], featuretype = ['CDS'])).start
+                start_codon_start = next(db.children(db[transcript], featuretype=[
+                                         'CDS'], order_by='start', reverse=True)).end - 2
+                stop_codon_start = next(db.children(
+                    db[transcript], featuretype=['CDS'])).start
     except:
         return None, None, None, None, None, None, None
     ej_after_start_codon = []
@@ -238,7 +244,7 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
     before_start_codon = True
     seq_pos = []
 
-    for exon in db.children(db[transcript], featuretype = 'exon', order_by = 'start'):
+    for exon in db.children(db[transcript], featuretype='exon', order_by='start'):
         if exon.start <= start_codon_start <= exon.end:
             start_codon_pos = len(seq) + start_codon_start - exon.start
             after_start_codon = True
@@ -246,9 +252,12 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
         if exon.start <= stop_codon_start <= exon.end:
             stop_codon_pos = len(seq) + stop_codon_start - exon.start
         if exon.start < e_start < exon.end and exon.start < e_end < exon.end:
-            cds_seq = exon.sequence(genome_fn).upper() if strand == '+' else str(Seq(exon.sequence(genome_fn).upper()).reverse_complement())
-            exitron_pos = len(seq) + e_start - exon.start - start_codon_pos if strand == '+' else len(seq) + e_start - exon.start - stop_codon_pos
-            seq += cds_seq[:e_start - exon.start + 1] + cds_seq[e_end - exon.start:]
+            cds_seq = exon.sequence(genome_fn).upper(
+            ) if strand == '+' else str(Seq(exon.sequence(genome_fn).upper()).reverse_complement())
+            exitron_pos = len(seq) + e_start - exon.start - start_codon_pos if strand == '+' else len(
+                seq) + e_start - exon.start - stop_codon_pos
+            seq += cds_seq[:e_start - exon.start + 1] + \
+                cds_seq[e_end - exon.start:]
             seq_pos.extend([*range(exon.start, e_start + 1)])
             seq_pos.extend([*range(e_end, exon.end + 1)])
 
@@ -264,10 +273,13 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
             # if strand is -, exon.sequence returns reverse complement
             # however, it's easier to build forward strand exon by exon and
             # only afterwards reverse complement to get gene/prot sequence.
-            seq += exon.sequence(genome_fn).upper() if strand == '+' else str(Seq(exon.sequence(genome_fn).upper()).reverse_complement())
+            seq += exon.sequence(genome_fn).upper() if strand == '+' else str(
+                Seq(exon.sequence(genome_fn).upper()).reverse_complement())
             seq_pos.extend([*range(exon.start, exon.end + 1)])
-            if after_start_codon: ej_after_start_codon.append(len(seq) - 1)
-            if before_start_codon: ej_before_start_codon.append(len(seq) - 1)
+            if after_start_codon:
+                ej_after_start_codon.append(len(seq) - 1)
+            if before_start_codon:
+                ej_before_start_codon.append(len(seq) - 1)
 
     if not exitron_pos:
         # This can happen if LIQA detects exitron in a transcript for which the
@@ -277,6 +289,7 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
         # If this happens, just return None and move on.
         return None, None, None, None, None, None, None
     return seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon
+
 
 def get_gene_seq(exitron, db, genome_fn):
     """
@@ -297,9 +310,11 @@ def get_gene_seq(exitron, db, genome_fn):
     seq = ''
     transcript = exitron['transcript_id']
 
-    for cds in db.children(db[transcript], featuretype = 'CDS', order_by = 'start'):
-        seq += cds.sequence(genome_fn).upper() if exitron['strand'] == '+' else str(Seq(cds.sequence(genome_fn).upper()).reverse_complement())
+    for cds in db.children(db[transcript], featuretype='CDS', order_by='start'):
+        seq += cds.sequence(genome_fn).upper() if exitron['strand'] == '+' else str(
+            Seq(cds.sequence(genome_fn).upper()).reverse_complement())
     return seq
+
 
 def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis):
     """
@@ -320,11 +335,13 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
     (description, detail, dna_seq, prot_seq)
     """
     exitron['transcript_id'] = transcript
-    seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon = get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis)
+    seq, start_codon_pos, stop_codon_pos, exitron_pos, seq_pos, ej_after_start_codon, ej_before_start_codon = get_gene_exitron_seq(
+        exitron, db, genome_fn, arabidopsis)
     if not seq:
         # without start/stop codons, all we can infer is truncation vs frameshift
         exitron['exitron_prot_position'] = '.'
-        exitron['type'] = 'truncated' if int(exitron['length']) % 3 == 0 else 'frameshift'
+        exitron['type'] = 'truncated' if int(
+            exitron['length']) % 3 == 0 else 'frameshift'
         exitron['substitution'] = '.'
         exitron['nmd_status_predicted'] = '.'
         exitron['nmd_status_read_percentage'] = '.'
@@ -332,7 +349,8 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
         exitron['start_proximal_PTC'] = '.'
         return exitron, None, None
 
-    seq = Seq(seq) if exitron['strand'] == '+' else Seq(seq).reverse_complement()
+    seq = Seq(
+        seq) if exitron['strand'] == '+' else Seq(seq).reverse_complement()
     if exitron['strand'] == '-':
         # recalibrate position
         # we keep track of original start_codon_pos in backward seq in order to
@@ -349,34 +367,41 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
         # add trailing Ns so that sequence is divisible by 3 (otherwise biopython complains)
         n_adjust = 'N'*(3 - len(seq[start_codon_pos:]) % 3)
         frameshift_seq = seq[start_codon_pos:] + n_adjust
-        frameshift_prot = frameshift_seq.translate(to_stop = True)
+        frameshift_prot = frameshift_seq.translate(to_stop=True)
         frameshift_pos = seq_pos[start_codon_pos + len(frameshift_prot)*3 - 1]
-        nmd, tot = get_nmd_status(exitron, frameshift_pos,  bamfile) if bamfile else -1, -1
+        nmd, tot = get_nmd_status(
+            exitron, frameshift_pos,  bamfile) if bamfile else -1, -1
 
-        dna_seq = seq[start_codon_pos:start_codon_pos + len(frameshift_prot)*3 + 3]
+        dna_seq = seq[start_codon_pos:start_codon_pos +
+                      len(frameshift_prot)*3 + 3]
 
         # use ej_after_start_codon[:-1] here because the last exon boundry does not count as an EJC
         if exitron['strand'] == '+':
-            nmd_pred = 'NMD' if any(x > len(frameshift_prot)*3 + 50 for x in ej_after_start_codon[:-1]) else 'no_NMD'
+            nmd_pred = 'NMD' if any(x > len(
+                frameshift_prot)*3 + 50 for x in ej_after_start_codon[:-1]) else 'no_NMD'
         else:
-            nmd_pred = 'NMD' if any(x < orig_start_codon_pos - len(frameshift_prot)*3 - 50 for x in ej_before_start_codon) else 'no_NMD'
+            nmd_pred = 'NMD' if any(x < orig_start_codon_pos - len(
+                frameshift_prot)*3 - 50 for x in ej_before_start_codon) else 'no_NMD'
 
         exitron['exitron_prot_position'] = exitron_pos//3
         exitron['type'] = 'frameshift'
         exitron['substitution'] = '.'
         exitron['nmd_status_predicted'] = nmd_pred
         exitron['nmd_status_read_percentage'] = nmd/tot if tot > 0 else '.'
-        exitron['downstream_inframe_AUG'] = 'M' in (seq[start_codon_pos + len(frameshift_prot)*3 + 3:] + n_adjust).translate()
+        exitron['downstream_inframe_AUG'] = 'M' in (
+            seq[start_codon_pos + len(frameshift_prot)*3 + 3:] + n_adjust).translate()
         exitron['start_proximal_PTC'] = exitron_pos <= 200
 
         return exitron, str(dna_seq), str(frameshift_prot) + '*'
 
     # exitron is truncated + substitution iff (exitron_pos - 1) % 3 != 0
     elif (exitron_pos - 1) % 3 != 0:
-        seq_full = get_gene_seq(exitron, db, genome_fn) if exitron['strand'] == '+' else str(Seq(get_gene_seq(exitron, db, genome_fn)).reverse_complement())
+        seq_full = get_gene_seq(exitron, db, genome_fn) if exitron['strand'] == '+' else str(
+            Seq(get_gene_seq(exitron, db, genome_fn)).reverse_complement())
         # new aa is at aa where exitron begins in spliced protein sequence
         try:
-            new_aa = str(seq[start_codon_pos:stop_codon_pos + 3].translate())[exitron_pos//3]
+            new_aa = str(seq[start_codon_pos:stop_codon_pos +
+                         3].translate())[exitron_pos//3]
         except:
             # This can happen if LIQA predicts that exitron occurs in transcript
             # at 3' or 5' UTR.  This can happen if exitron was originally called in
@@ -418,6 +443,7 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
                 str(seq[start_codon_pos:stop_codon_pos+3]),
                 str(seq[start_codon_pos:stop_codon_pos+3].translate()))
 
+
 def get_pfam_domains(exitron, prot_df):
     """
 
@@ -455,9 +481,9 @@ def get_pfam_domains(exitron, prot_df):
             exitron['prot_domains'] = '.'
 
 
-#=============================================================================
+# =============================================================================
 # Main
-#=============================================================================
+# =============================================================================
 
 
 def main(tmp_path):
@@ -467,20 +493,23 @@ def main(tmp_path):
     # Check to see if bamfile can be opened and there is an index.
     if args.bam_file:
         try:
-            bamfile = pysam.AlignmentFile(args.bam_file, 'rb', require_index = True)
+            bamfile = pysam.AlignmentFile(
+                args.bam_file, 'rb', require_index=True)
         except FileNotFoundError:
             try:
                 print('Building bam index file')
                 pysam.index(args.bam_file)
-                bamfile = pysam.AlignmentFile(args.input, 'rb', require_index = True)
+                bamfile = pysam.AlignmentFile(
+                    args.input, 'rb', require_index=True)
             except FileNotFoundError:
                 print(f'There is a problem opening bam file at: {args.input}')
-    else: bamfile = None
+    else:
+        bamfile = None
     try:
         db = gffutils.create_db(args.annotation_ref,
-                                dbfn = args.annotation_ref + '.db',
-                                disable_infer_genes = True,
-                                disable_infer_transcripts = True)
+                                dbfn=args.annotation_ref + '.db',
+                                disable_infer_genes=True,
+                                disable_infer_transcripts=True)
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
     except:
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
@@ -517,7 +546,8 @@ def main(tmp_path):
         for column in header:
             out.write(column + '\t')
         out.write('\n')
-        prot_df = pd.read_csv('data/human_pfam.tsv', delimiter='\t') if not args.arabidopsis else  pd.read_csv('data/arabidopsis_pfam.tsv', delimiter='\t')
+        prot_df = pd.read_csv('data/human_pfam.tsv', delimiter='\t') if not args.arabidopsis else pd.read_csv(
+            'data/arabidopsis_pfam.tsv', delimiter='\t')
         exitrons = read_exitron_file(args.input)
         for exitron in exitrons:
             transcripts = exitron['transcript_id'].split(';')
@@ -525,7 +555,8 @@ def main(tmp_path):
                 t_id = transcript.split(',')[0]
                 abundance = transcript.split(',')[1]
                 # dna / prot seq output not yet implemented
-                res, _, _= categorize_exitron(exitron.copy(), t_id, bamfile, db, args.genome_ref, args.arabidopsis)
+                res, _, _ = categorize_exitron(
+                    exitron.copy(), t_id, bamfile, db, args.genome_ref, args.arabidopsis)
 
                 # idetnify pfam domains
                 if res['exitron_prot_position'] != '.':
@@ -544,8 +575,10 @@ if __name__ == '__main__':
     # Set tmp directory
     this_dir = os.path.dirname(os.path.realpath(__file__))
     tmp_path = os.path.join(this_dir, f'scanexitron_tmp{os.getpid()}')
-    try: os.mkdir(tmp_path)
-    except FileExistsError: pass
+    try:
+        os.mkdir(tmp_path)
+    except FileExistsError:
+        pass
     try:
         main(tmp_path)
     except Exception as e:
@@ -555,9 +588,3 @@ if __name__ == '__main__':
             traceback.print_tb(e.__traceback__)
         rmtree(tmp_path)
         sys.exit(1)
-
-
-
-
-
-
