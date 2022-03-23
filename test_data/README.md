@@ -4,7 +4,7 @@ In this example, you will run ScanExitronLR on two small bam files from _Aradops
 
 Please download the example bam files [here](https://drive.google.com/drive/folders/1JHY2dqf6O5QgOAJpALhBh2iAquf3EY7O?usp=sharing) or from this github page.
 
-## Running ScanExitron
+## Running ScanExitronLR
 
 First, it is necessary to download a specifically formated version of TAIR10 reference genome and annotation, [which can be found here.](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) This includes a sorted GFF file and a GFF database (with the '.db' extension).  ScanExitron will create such a database if none is found, but downloading it here will save time. We require that the GFF annotation file is sorted for speed and memory efficiency. This example will assume you have downloaded these files and have them in the current working directory folder.
 
