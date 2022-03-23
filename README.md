@@ -47,11 +47,11 @@ bgzip in.gtf
 
 `bgzip` is part of the [htslib](http://www.htslib.org/), which you most likely already have installed if you care about BAM files. Otherwise, you can get it [here](http://www.htslib.org/). It is important to note that if you download the [latest GENCODE release](https://www.gencodegenes.org/human/) it will be in the gzip form, not bgzip. You will need to run `gzip -d` and then `bgzip`. 
 
-ScanExitronLR utilizes the `gffutils` package, which requires an SQL-lite database of the annotation file. You do not need to provide such a file, as ScanExitronLR will create one if one is not found, though it may take ~20 minutes to build.  It will be saved as `your_annotation.gtf.gz.db` in the same location as your annotation. In addition, we require a tabix index, and it will be created if one is not found. This should only take seconds.  It will be saved as `your_annotation.gtf.gz.tbi`. 
+ScanExitronLR utilizes the `gffutils` package, which requires an SQL-lite database of the annotation file. You do not need to provide such a file, as ScanExitronLR will create one if one is not found, though it may take ~20 minutes to build.  It will be saved as `your_annotation.gtf.gz.db` in the same location as your annotation and will not need to be built again. In addition, we require a tabix index, and it will be created if one is not found. This should only take seconds.  It will be saved as `your_annotation.gtf.gz.tbi`. 
 
 Thus, if you are running ScanExitronLR on a shared server and using a shared annotation database, you may not have writing privelages in the shared space. You will need to copy your annotation file to your local directory.
 
-To run ScanExitron2 in extract mode, simply run
+To run ScanExitronLR in extract mode, simply run
 
 ```bash
 selr extract ...
@@ -67,6 +67,8 @@ usage:
     		-a/--ao INT	Reports only exitrons with AO of INT or above (default: 1).
     		-p/--pso FLOAT	Reports only exitrons with PSO of FLOAT or above (default: 0.01).
     		-c/--cores INT	Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
+                -cp/--cluster-purity FLOAT  Reports only exitrons with cluster purity of FLOAT or above (default: 0).
+
     		-arabidopsis	Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
     		-m/--mapq INT	Only considers reads with mapq score >= INT (default: 50)
     		-j/--jitter INT	Treat splice-sites with fuzzy boundry of +/- INT (default: 10).
@@ -77,7 +79,7 @@ usage:
 
 ## Annotate
 
-To run ScanExitron2 in annotate mode, simply run
+To run ScanExitronLR in annotate mode, simply run
 
 ```bash
 selr annotate ...
