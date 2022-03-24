@@ -1,4 +1,9 @@
 [![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
+[![PyPI](https://img.shields.io/pypi/v/scanexitronlr.svg)](https://pypi.org/project/scanexitronlr/ "PyPI")
+[![Status](https://img.shields.io/pypi/status/scanexitronlr.svg)](https://pypi.org/project/scanexitronlr "Status")
+[![Python Version](https://img.shields.io/pypi/pyversions/scanexitronlr)](https://pypi.org/project/scanexitronlr/ "Python Version")
+[![License](https://img.shields.io/pypi/l/scanexitronlr)](https://opensource.org/licenses/MIT "License")
+
 # ScanExitronLR
 
 
