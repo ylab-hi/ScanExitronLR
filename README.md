@@ -64,7 +64,7 @@ usage:
     		-g STR		REQUIRED: Input genome reference (e.g. hg38.fa)
     		-r STR		REQUIRED: Input *sorted* and *bgzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
     		-o STR		Output filename (e.g. bam_filename.exitron <- this is default)
-    		-a/--ao INT	Reports only exitrons with AO of INT or above (default: 1).
+    		-a/--ao INT	Reports only exitrons with AO of INT or above (default: 2).
     		-p/--pso FLOAT	Reports only exitrons with PSO of FLOAT or above (default: 0.01).
     		-c/--cores INT	Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
                 -cp/--cluster-purity FLOAT  Reports only exitrons with cluster purity of FLOAT or above (default: 0).
