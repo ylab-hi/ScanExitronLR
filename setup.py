@@ -5,7 +5,7 @@ with open("README.md", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="scanexitronlr",
-    version="1.1.4",
+    version="1.1.5",
     author="Josh Fry",
     author_email="fryxx094@umn.edu",
     description="ScanExitronLR: a lightweight tool for the "

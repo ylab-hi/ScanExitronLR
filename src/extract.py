@@ -5,7 +5,7 @@
 # ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 # ===============================================================================
-__version__ = 'v1.1.4'
+__version__ = 'v1.1.5'
 import sys
 import os
 import argparse
@@ -875,13 +875,10 @@ def main(tmp_path, args):
                   'cluster_purity',
                   'reads']
         # write header
-        for column in header:
-            out.write(column + '\t')
-        out.write('\n')
+        out.write('\t'.join(header) + '\n')
         for exitron in exitrons:
-            for column in header:
-                out.write(str(exitron[column]) + '\t')
-            out.write('\n')
+            out.write('\t'.join([str(exitron[column])
+                      for column in header]) + '\n')
 
     # Clear tmp directory
     rmtree(tmp_path)

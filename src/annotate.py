@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""
-@author: Josh Fry @YangLab, Hormel Institute, UMN
-"""
-__version__ = 'v1.1.3'
+#
+# @author: Josh Fry @YangLab, Hormel Institute, UMN
+#
+# ===============================================================================
+
+__version__ = 'v1.1.5'
 import os
 import sys
 import gffutils
@@ -550,9 +552,7 @@ def main(args):
                   'start_proximal_PTC',
                   'prot_domains',
                   'reads']
-        for column in header:
-            out.write(column + '\t')
-        out.write('\n')
+        out.write('\t'.join(header) + '\n')
         prot_df = pd.read_csv(f'{os.path.dirname(os.path.realpath(__file__))}/human_pfam.tsv', delimiter='\t') if not args.arabidopsis else pd.read_csv(
             f'{os.path.dirname(os.path.realpath(__file__))}/arabidopsis_pfam.tsv', delimiter='\t')
         exitrons = read_exitron_file(args.input)
@@ -577,8 +577,8 @@ def main(args):
 
                 # update abundance
                 res['transcript_id'] += f',{abundance}'
-                for column in header:
-                    out.write(str(res[column]) + '\t')
+                out.write('\t'.join([str(res[column])
+                          for column in header]))
                 out.write('\n')
 
     if args.fasta:

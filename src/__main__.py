@@ -4,7 +4,7 @@ Created on Wed Mar 16 20:44:36 2022
 
 @author: jpfry
 """
-__version__ = 'v1.1.4'
+__version__ = 'v1.1.5'
 import os
 import sys
 import subprocess
