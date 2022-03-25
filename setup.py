@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="scanexitronlr",
-    version="1.1.3",
+    version="1.1.4",
     author="Josh Fry",
     author_email="fryxx094@umn.edu",
     description="ScanExitronLR: a lightweight tool for the characterization and quantification of exitrons in long read RNA-seq data",
@@ -14,9 +14,9 @@ setuptools.setup(
     url="https://github.com/ylab/ScanExitronLR",
     license="MIT",
     classifiers=[
-        "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Development  Status  ::  5  -  Production/Stable",
     ],
     install_requires=["pysam", "liqa", "gffutils", "pandas", "biopython"],
     python_requires='>=3.7',

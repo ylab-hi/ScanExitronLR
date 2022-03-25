@@ -6,7 +6,7 @@
 # ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 # ===============================================================================
-__version__ = 'v1.1.3'
+__version__ = 'v1.1.4'
 import sys
 import os
 import argparse
@@ -37,11 +37,10 @@ def parse_args():
     \t\t\t\t\tbgzip -c in.gtf > out.gtf.gz
     \t\t\t\tIf an annotation databse (e.g. your_database.gtf.gz.db) does not exist, one is created.
     \t\t-o STR\t\tOutput filename (e.g. bam_filename.exitron <- this is default)
-    \t\t-a/--ao INT\tReports only exitrons with AO of INT or above (default: 1).
+    \t\t-a/--ao INT\tReports only exitrons with AO of INT or above (default: 2).
     \t\t-p/--pso FLOAT\tReports only exitrons with PSO of FLOAT or above (default: 0.01).
     \t\t-cp/--cluster-purity FLOAT\tReports only exitrons with cluster purity of FLOAT or above (default: 0).
     \t\t-c/--cores INT\tUse INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
-    \t\t-arabidopsis\tUse this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
     \t\t-m/--mapq INT\tOnly considers reads with mapq score >= INT (default: 50)
     \t\t-j/--jitter INT\tTreat splice-sites with fuzzy boundry of +/- INT (default: 10).
     \t\t-sr\t\tUse this flag to skip the realignment step.
@@ -58,12 +57,6 @@ def parse_args():
         action="store",
         dest="input",
         required=True,
-    )
-    parser.add_argument(
-        "-arabidopsis",
-        "--arabidopsis",
-        action="store_true",
-        dest="arabidopsis",
     )
     parser.add_argument(
         "-g",
@@ -115,7 +108,7 @@ def parse_args():
         action="store",
         dest="ao_min",
         type=int,
-        default=1,
+        default=2,
     )
     parser.add_argument(
         "-p",
@@ -231,7 +224,7 @@ def find_introns(read_iterator):
     return introns, reads
 
 
-def exitron_caller(bamfile, referencename, chrm, db, arabidopsis=False, mapq=50, jitter=10):
+def exitron_caller(bamfile, referencename, chrm, db, mapq=50, jitter=10):
     """
 
 
@@ -241,7 +234,6 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis=False, mapq=50,
     referencename : str
     chrms : list
     db : gffulits.database
-    arabidopsis: bool
     mapq : int, optional
         Only considers reads from bamfile with quality >= mapq. The default is 50.
     jitter : int
@@ -256,8 +248,7 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis=False, mapq=50,
         (read for read in bamfile.fetch(chrm) if read.mapping_quality >= mapq)
     )
 
-    # gtf = pysam.TabixFile(referencename, parser = pysam.asGTF())
-    gtf = pysam.TabixFile(referencename, parser=pysam.asGFF3())
+    gtf = pysam.TabixFile(referencename, parser=pysam.asGTF())
     exitrons = []
     exitrons_added = []
     known_splices = set()
@@ -284,17 +275,20 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis=False, mapq=50,
             region_type = feature.feature
             region_start = feature.start
             region_end = feature.end
-            if arabidopsis and (region_type not in ['CDS', 'exon', 'three_prime_UTR', 'five_prime_UTR']):
-                continue
-            gene_name = feature.gene_name if not arabidopsis else feature.Parent.split('.')[
-                0]
-            gene_id = feature.gene_id if not arabidopsis else feature.Parent.split('.')[
-                0]
-
+            try:
+                gene_name = feature.gene_name
+                gene_id = feature.gene_id
+            except:
+                try:
+                    # Some Arabidopsis GTF filies have only a gene_id
+                    gene_name = feature.gene_id
+                    gene_id = feature.gene_id
+                except:
+                    # This is to catch cases where exon is not associated with any gene
+                    continue
             # Use the ends to check for known donors or acceptors
             if region_type == 'exon':
-                transcript_id = feature.transcript_id if not arabidopsis else feature.Parent.split(',')[
-                    0]
+                transcript_id = feature.transcript_id
                 if intron_start in range(region_end - jitter*2, region_end + 1) and \
                     (chrm, intron_start + 1 + jitter, intron_end - 2 - jitter + 1, 'D') not in known_splices and \
                         feature.end != db[transcript_id].end:
@@ -310,8 +304,7 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis=False, mapq=50,
 
             elif region_type == 'CDS' and region_start < intron_start + 1 + jitter \
                     and region_end > intron_end - 1 - jitter:
-                transcript_id = feature.transcript_id if not arabidopsis else feature.Parent.split(',')[
-                    0]
+                transcript_id = feature.transcript_id
                 if gene_id in blacklist:
                     continue
                 if (intron_start, intron_end, region_type) not in exitrons_added:
@@ -339,13 +332,13 @@ def exitron_caller(bamfile, referencename, chrm, db, arabidopsis=False, mapq=50,
                             if e['name'] == f'{gene_name}d{intron_start + 1 + jitter}-{intron_end - 2 - jitter + 1}':
                                 e['transcript_id'] = transcript_id
                                 break
-
+    gtf.close()
     return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices and
                                                  ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices)))],
             reads)
 
 
-def filter_exitrons(exitrons, reads, bamfile, genome, db, skip_realign, mapq=50, pso_min=0.01, ao_min=1, cluster_purity=0, jitter=10):
+def filter_exitrons(exitrons, reads, bamfile, genome, db, skip_realign, mapq=50, pso_min=0.01, ao_min=2, cluster_purity=0, jitter=10):
     """
     Parameters
     ----------
@@ -466,7 +459,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, db, skip_realign, mapq=50,
             dp = int(ao/pso) if pso > 0 else 0
 
             # Check whether attributes exceed minimum values
-            if pso >= pso_min:
+            if pso >= pso_min and ao >= ao_min:
                 consensus_e['pso'] = round(pso, ndigits=4)
                 consensus_e['dp'] = dp
                 consensus_e['a'] = a
@@ -539,7 +532,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, db, skip_realign, mapq=50,
     return res
 
 
-def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_fn, arabidopsis, cores):
+def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, out_fn, cores):
     """
 
 
@@ -555,7 +548,6 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     save_abundance : bool
         if True, save abundance files
     out_fn : str
-    arabidopsis : bool
     cores : int
         number of cores for bamfile indexing/sorting
 
@@ -601,14 +593,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
     with open(tmp_path + '/tmp.gtf', 'w') as f:
         for e in exitrons:
             for region in db.children(db[e['gene_id']], order_by='start'):
-                if arabidopsis and region.featuretype == 'exon':
-                    gene_id = e['gene_id']
-                    transcript_id = region.attributes['Parent'][0]
-                    region = str(region).split('\t')
-                    region[8] = f'gene_id "{gene_id}"; transcript_id "{transcript_id}";'
-                    f.write('\t'.join(region) + '\n')
-                elif not arabidopsis:
-                    f.write(str(region) + '\n')
+                f.write(str(region) + '\n')
 
     # run liqa to create refgene
     subprocess.run(['liqa',
@@ -683,7 +668,7 @@ def identify_transcripts(exitrons, db, bamfilename, tmp_path, save_abundance, ou
 # ===============================================================================
 
 
-def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, cluster_purity, jitter, skip_realign, arabidopsis):
+def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min, ao_min, cluster_purity, jitter, skip_realign):
     """
     Wrapper that calls main functions *per chromosome*.
     """
@@ -695,7 +680,6 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
                                      referencename,
                                      chrm,
                                      db,
-                                     arabidopsis,
                                      mapq,
                                      jitter)
     exitrons = filter_exitrons(exitrons,
@@ -716,14 +700,30 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
 
 
 def main(tmp_path, args):
-    # Define chrms
-    chrms = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5',
-             'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
-             'chr11', 'chr12', 'chr13', 'chr14', 'chr15',
-             'chr16', 'chr17', 'chr18', 'chr19', 'chr20',
-             'chr21', 'chr22', 'chrX', 'chrY'] if not args.arabidopsis else \
-        ['Chr1', 'Chr2', 'Chr3', 'Chr4',
-         'Chr5', 'ChrM', 'Chrchloroplast']
+    try:
+        # Define chrms
+        fa = pysam.FastaFile(args.genome_ref)
+        chrms = fa.references
+        fa.close()
+    except:
+        print('Building FASTA index file')
+        pysam.faidx(args.genome_ref)
+        try:
+            fa = pysam.FastaFile(args.genome_ref)
+            chrms = fa.references
+            fa.close()
+        except:
+            print(f'ERROR: Unable to read FASTA file {args.genome_ref}')
+            rmtree(tmp_path)
+            sys.exit(1)
+
+    # chrms = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5',
+    #          'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
+    #          'chr11', 'chr12', 'chr13', 'chr14', 'chr15',
+    #          'chr16', 'chr17', 'chr18', 'chr19', 'chr20',
+    #          'chr21', 'chr22', 'chrX', 'chrY'] if not args.arabidopsis else \
+    #     ['Chr1', 'Chr2', 'Chr3', 'Chr4',
+    #      'Chr5', 'ChrM', 'Chrchloroplast']
 
     # Check if bamfile can be opened and there is an index.
     try:
@@ -747,7 +747,7 @@ def main(tmp_path, args):
             gtf.close()
         except OSError:
             print('Building tabix index.')
-            pysam.tabix_index(args.annotation_ref, preset='gff')
+            pysam.tabix_index(args.annotation_ref, preset='gtf')
     except:
         print(
             f'ERROR: There is a problem reading the annotation file at: {args.annotation_ref}')
@@ -765,7 +765,7 @@ def main(tmp_path, args):
 
     # Check for gziped annotation
     if args.annotation_ref[-2:] != 'gz':
-        print('ERROR: Annotation file is required to be zipped in .gz format. Please compress your GTF/GFF file with a command such as: gzip -c in.gtf > out.gtf.gz')
+        print('ERROR: Annotation file is required to be zipped in .gz format. Please compress your GTF file with a command such as: gzip -c in.gtf > out.gtf.gz')
         rmtree(tmp_path)
         sys.exit(1)
 
@@ -775,14 +775,10 @@ def main(tmp_path, args):
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
     except ValueError:
         print('Preparing annotation database... This may take awhile ... ')
-        if not args.arabidopsis:
-            db = gffutils.create_db(args.annotation_ref,
-                                    dbfn=args.annotation_ref + '.db',
-                                    disable_infer_genes=True,
-                                    disable_infer_transcripts=True)
-        else:
-            db = gffutils.create_db(args.annotation_ref,
-                                    dbfn=args.annotation_ref + '.db')
+        db = gffutils.create_db(args.annotation_ref,
+                                dbfn=args.annotation_ref + '.db',
+                                disable_infer_transcripts=True,
+                                disable_infer_genes=True)
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
 
@@ -821,7 +817,7 @@ def main(tmp_path, args):
                                                                     args.cluster_purity,
                                                                     args.jitter,
                                                                     args.skip_realign,
-                                                                    args.arabidopsis), callback=collect_result))
+                                                                    ), callback=collect_result))
         pool.close()
         for t in threads:
             t.get()  # this gets any exceptions raised
@@ -839,7 +835,7 @@ def main(tmp_path, args):
                                       args.cluster_purity,
                                       args.jitter,
                                       args.skip_realign,
-                                      args.arabidopsis)
+                                      )
             collect_result(output)
     exitrons = []
     for chrm in results:
@@ -858,7 +854,6 @@ def main(tmp_path, args):
                          tmp_path,
                          args.save_abundance,
                          out_file_name,
-                         args.arabidopsis,
                          args.cores)
     print(
         f'Finished exitron calling and filtering. Printing to {out_file_name}')

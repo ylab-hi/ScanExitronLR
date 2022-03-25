@@ -31,7 +31,7 @@ def parse_args():
     \t\t\t\tIf your annotation file is not gziped, use the following command: bgzip -c in.gtf > out.gtf.gz
     \t\t-o STR\t\tOutput filename (e.g. bam_filename.exitron.annotation <- this is default)
     \t\t-b/--bam-file STR\t\tIf specified, annotation includes read supported NMD status directly from alignments.
-    \t\t-arabidopsis\tUse this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
+    \t\t-arabidopsis\tUse this flag if using alignments from Arabidopsis. Interrupted Arabidopsis protein domains will be reported.
     """
     parser = argparse.ArgumentParser(
         description="annotate",
