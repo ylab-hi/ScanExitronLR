@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #
 # ScanExitron v1 written by Tingyou Wang@Yang Lab, Hormel Institute, University of Minnesota
 #
@@ -139,7 +138,7 @@ def parse_args():
         dest="save_abundance",
     )
     parser.add_argument(
-        "-v", "--version", action="version", version="%(prog)s {}".format(__version__)
+        "-v", "--version", action="version", version=f"%(prog)s {__version__}"
     )
     args = parser.parse_args()
     return args
@@ -245,7 +244,7 @@ def exitron_caller(bamfile, referencename, chrm, db, mapq=50, jitter=10):
     """
 
     introns, reads = find_introns(
-        (read for read in bamfile.fetch(chrm) if read.mapping_quality >= mapq)
+        read for read in bamfile.fetch(chrm) if read.mapping_quality >= mapq
     )
 
     gtf = pysam.TabixFile(referencename, parser=pysam.asGTF())
@@ -257,7 +256,7 @@ def exitron_caller(bamfile, referencename, chrm, db, mapq=50, jitter=10):
     this_dir = os.path.dirname(os.path.realpath(__file__))
     blacklist_path = os.path.join(this_dir, 'blacklist.tsv')
     try:
-        with open(blacklist_path, 'r') as b:
+        with open(blacklist_path) as b:
             b.readline()
             blacklist = [l.split('\t')[1].rstrip() for l in b]
     except:
@@ -333,8 +332,8 @@ def exitron_caller(bamfile, referencename, chrm, db, mapq=50, jitter=10):
                                 e['transcript_id'] = transcript_id
                                 break
     gtf.close()
-    return ([exitron for exitron in exitrons if (((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices and
-                                                 ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices)))],
+    return ([exitron for exitron in exitrons if ((exitron['chrom'], exitron['start'], exitron['end'], 'D') not in known_splices and
+                                                 ((exitron['chrom'], exitron['start'], exitron['end'], 'A') not in known_splices))],
             reads)
 
 
@@ -424,7 +423,7 @@ def filter_exitrons(exitrons, reads, bamfile, genome, db, skip_realign, mapq=50,
                     left = genome_seq[-2:]
                     e['splice_site'] = genome_seq[:2] + '-' + genome_seq[-2:]
             try:
-                consensus_e = max([e for e in group if e['splice_site'] in ['GT-AG', 'GC-AG', 'AT-AC']],
+                consensus_e = max((e for e in group if e['splice_site'] in ['GT-AG', 'GC-AG', 'AT-AC']),
                                   key=lambda e: (e['ao'], e['length']))
                 tot_ao = sum(e['ao'] for e in group)
                 consensus_e['cluster_purity'] = round(
@@ -787,7 +786,7 @@ def main(tmp_path, args):
     blacklist_path = os.path.join(this_dir, 'blacklist.tsv')
 
     try:
-        b = open(blacklist_path, 'r')
+        b = open(blacklist_path)
         b.close()
     except FileNotFoundError:
         print('No blacklist found -- continuing without it, beware of false positives')

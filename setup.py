@@ -1,6 +1,6 @@
 import setuptools
 
-with open("README.md", "r", encoding="utf-8") as fh:
+with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
@@ -21,8 +21,8 @@ setuptools.setup(
     install_requires=["pysam", "liqa", "gffutils", "pandas", "biopython"],
     python_requires='>=3.7',
     packages=["src"],
-    package_dir={"src":"src"},
-    #include_package_data=True,
+    package_dir={"src": "src"},
+    # include_package_data=True,
     package_data={'': ['*.tsv']},
     entry_points={
         "console_scripts": [

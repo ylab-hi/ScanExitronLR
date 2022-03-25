@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 @author: Josh Fry @YangLab, Hormel Institute, UMN
 """
@@ -87,7 +86,7 @@ def parse_args():
         dest="fasta",
     )
     parser.add_argument(
-        "-v", "--version", action="version", version="%(prog)s {}".format(__version__)
+        "-v", "--version", action="version", version=f"%(prog)s {__version__}"
     )
     args = parser.parse_args()
     return args
@@ -108,7 +107,7 @@ def read_exitron_file(filename):
 
     """
     exitrons = []
-    with open(filename, 'r') as f:
+    with open(filename) as f:
         header = f.readline().rstrip().split('\t')
         for line in f:
             exitron = {}

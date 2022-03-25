@@ -6,19 +6,21 @@
 
 # ScanExitronLR
 
-
 A computational workflow for exitron splicing identification in long-read RNA-seq data.
 <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type.png#gh-light-mode-only">
 <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type_dark.png#gh-dark-mode-only">
 
 # Installation
+
 The recommended way to install `ScanExitronLR` is using [pip](https://pip.pypa.io/en/stable/):
 
 ```bash
-pip install scanexitronlr 
+pip install scanexitronlr
 ```
-This will pull and install the latest stable release from [PyPi](https://pypi.org/). ScanExitronLR requires Python 3.7+. Thus you need to make sure that the `pip` is for python3 using e.g. `which pip` or using: 
-```bash 
+
+This will pull and install the latest stable release from [PyPi](https://pypi.org/). ScanExitronLR requires Python 3.7+. Thus you need to make sure that the `pip` is for python3 using e.g. `which pip` or using:
+
+```bash
 pip3 install scanexitronlr
 ```
 
@@ -31,11 +33,11 @@ selr
 You should see the version number, usage instructions and commands. (If you prefer a more descriptive command `scanexitronlr` also works.)
 
 # Usage
+
 ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when calling exitrons in an alignment and `annotate` when annotating exitrons called using `extract`.
 
-
-
 ## Extract
+
 `extract` requires three inputs: (1) a BAM alignment file of long-reads containing the ts:A flag (provided by default by Minimap2), (2) a reference genome and (3) a sorted and bgzip'd gene annotation file. Currently only gtf files, e.g. Gencode v38, and the TAIR _Arabidopsis thaliana_ GFF3 annotation file are supported. You can download a preproccessed TAIR10 annotation and reference genome [here](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing).
 
 To sort your gtf file, use the command:
@@ -50,19 +52,20 @@ To bgzip your gene annotation file, use:
 bgzip in.gtf
 ```
 
-`bgzip` is part of the [htslib](http://www.htslib.org/), which you most likely already have installed if you care about BAM files. Otherwise, you can get it [here](http://www.htslib.org/). It is important to note that if you download the [latest GENCODE release](https://www.gencodegenes.org/human/) it will be in the gzip form, not bgzip. You will need to run `gzip -d` and then `bgzip`. 
+`bgzip` is part of the [htslib](http://www.htslib.org/), which you most likely already have installed if you care about BAM files. Otherwise, you can get it [here](http://www.htslib.org/). It is important to note that if you download the [latest GENCODE release](https://www.gencodegenes.org/human/) it will be in the gzip form, not bgzip. You will need to run `gzip -d` and then `bgzip`.
 
-ScanExitronLR utilizes the `gffutils` package, which requires an SQL-lite database of the annotation file. You do not need to provide such a file, as ScanExitronLR will create one if one is not found, though it may take ~20 minutes to build.  It will be saved as `your_annotation.gtf.gz.db` in the same location as your annotation and will not need to be built again. In addition, we require a tabix index, and it will be created if one is not found. This should only take seconds.  It will be saved as `your_annotation.gtf.gz.tbi`. 
+ScanExitronLR utilizes the `gffutils` package, which requires an SQL-lite database of the annotation file. You do not need to provide such a file, as ScanExitronLR will create one if one is not found, though it may take ~20 minutes to build. It will be saved as `your_annotation.gtf.gz.db` in the same location as your annotation and will not need to be built again. In addition, we require a tabix index, and it will be created if one is not found. This should only take seconds. It will be saved as `your_annotation.gtf.gz.tbi`.
 
 Thus, if you are running ScanExitronLR on a shared server and using a shared annotation database, you may not have writing privelages in the shared space. You will need to copy your annotation file to your local directory.
 
-We have provided fully processed GTF files for [Gencode V39](https://drive.google.com/drive/folders/1LAU26BxAmTmkQdCaHJ1ba1LHBmOI8yUM?usp=sharing) and [TAIR10](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) for your convience. 
+We have provided fully processed GTF files for [Gencode V39](https://drive.google.com/drive/folders/1LAU26BxAmTmkQdCaHJ1ba1LHBmOI8yUM?usp=sharing) and [TAIR10](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) for your convience.
 
 To run ScanExitronLR in extract mode, simply run
 
 ```bash
 selr extract ...
 ```
+
 with the following parameters
 
 ```
@@ -91,6 +94,7 @@ To run ScanExitronLR in annotate mode, simply run
 ```bash
 selr annotate ...
 ```
+
 with the following parameters
 
 ```
@@ -107,7 +111,7 @@ The output is a tab-separated file.
 
 # Example
 
-See [here](https://github.com/ylab-hi/ScanExitronLR/tree/main/test_data) for an example. 
+See [here](https://github.com/ylab-hi/ScanExitronLR/tree/main/test_data) for an example.
 
 # Contact
 
@@ -116,5 +120,3 @@ Please feel free to post any issues here on github.
 # Citation
 
 TBD
-
-
