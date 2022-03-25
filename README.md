@@ -38,7 +38,7 @@ ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when callin
 
 ## Extract
 
-`extract` requires three inputs: (1) a BAM alignment file of long-reads containing the ts:A flag (provided by default by Minimap2), (2) a reference genome and (3) a sorted and bgzip'd gene annotation file. Currently only gtf files, e.g. Gencode v38, and the TAIR _Arabidopsis thaliana_ GFF3 annotation file are supported. You can download a preproccessed TAIR10 annotation and reference genome [here](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing).
+`extract` requires three inputs: (1) a BAM alignment file of long-reads containing the ts:A flag (provided by default by Minimap2), (2) a reference genome and (3) a sorted and bgzip'd gene annotation file. Currently only gtf files are supported.
 
 To sort your gtf file, use the command:
 
