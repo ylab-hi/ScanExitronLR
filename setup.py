@@ -8,7 +8,9 @@ setuptools.setup(
     version="1.1.4",
     author="Josh Fry",
     author_email="fryxx094@umn.edu",
-    description="ScanExitronLR: a lightweight tool for the characterization and quantification of exitrons in long read RNA-seq data",
+    description="ScanExitronLR: a lightweight tool for the "
+                "characterization and quantification of exitrons "
+                "in long read RNA-seq data",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ylab/ScanExitronLR",

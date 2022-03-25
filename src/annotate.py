@@ -8,13 +8,11 @@ import sys
 import gffutils
 import pysam
 import argparse
-import subprocess
 import traceback
 import pandas as pd
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
-from shutil import rmtree
 
 
 # ===============================================================================
