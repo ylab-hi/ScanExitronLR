@@ -56,6 +56,8 @@ ScanExitronLR utilizes the `gffutils` package, which requires an SQL-lite databa
 
 Thus, if you are running ScanExitronLR on a shared server and using a shared annotation database, you may not have writing privelages in the shared space. You will need to copy your annotation file to your local directory.
 
+We have provided fully processed GTF files for [Gencode V39](https://drive.google.com/drive/folders/1LAU26BxAmTmkQdCaHJ1ba1LHBmOI8yUM?usp=sharing) and [TAIR10](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) for your convience. 
+
 To run ScanExitronLR in extract mode, simply run
 
 ```bash
