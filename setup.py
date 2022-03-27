@@ -18,7 +18,8 @@ setuptools.setup(
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-        "Development  Status  ::  5  -  Production/Stable",
+        "Development Status :: 5 - Production/Stable",
+        "Programming Language :: Python :: 3.7",
     ],
     install_requires=["pysam", "liqa", "gffutils", "pandas", "biopython"],
     python_requires='>=3.7',

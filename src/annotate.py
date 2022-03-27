@@ -4,7 +4,7 @@
 #
 # ===============================================================================
 
-__version__ = 'v1.1.5'
+__version__ = 'v1.1.6'
 import os
 import sys
 import gffutils
@@ -597,5 +597,5 @@ if __name__ == '__main__':
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")
         else:
-            traceback.print_tb(e.__traceback__)
+            traceback.print_exc()
         sys.exit(1)

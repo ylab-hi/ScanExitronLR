@@ -5,7 +5,7 @@
 # ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 # ===============================================================================
-__version__ = 'v1.1.5'
+__version__ = 'v1.1.6'
 import sys
 import os
 import argparse
@@ -699,22 +699,22 @@ def exitrons_in_chrm(bamfilename, referencename, genomename, chrm, mapq, pso_min
 
 
 def main(tmp_path, args):
-    try:
-        # Define chrms
-        fa = pysam.FastaFile(args.genome_ref)
-        chrms = fa.references
-        fa.close()
-    except:
-        print('Building FASTA index file')
-        pysam.faidx(args.genome_ref)
-        try:
-            fa = pysam.FastaFile(args.genome_ref)
-            chrms = fa.references
-            fa.close()
-        except:
-            print(f'ERROR: Unable to read FASTA file {args.genome_ref}')
-            rmtree(tmp_path)
-            sys.exit(1)
+    # try:
+    #     # Define chrms
+    #     fa = pysam.FastaFile(args.genome_ref)
+    #     chrms = fa.references
+    #     fa.close()
+    # except:
+    #     print('Building FASTA index file')
+    #     pysam.faidx(args.genome_ref)
+    #     try:
+    #         fa = pysam.FastaFile(args.genome_ref)
+    #         chrms = fa.references
+    #         fa.close()
+    #     except:
+    #         print(f'ERROR: Unable to read FASTA file {args.genome_ref}')
+    #         rmtree(tmp_path)
+    #         sys.exit(1)
 
     # chrms = ['chr1', 'chr2', 'chr3', 'chr4', 'chr5',
     #          'chr6', 'chr7', 'chr8', 'chr9', 'chr10',
@@ -780,6 +780,14 @@ def main(tmp_path, args):
                                 disable_infer_genes=True)
         db = gffutils.FeatureDB(args.annotation_ref + '.db')
         print(f'Using annotation databse {args.annotation_ref + ".db"}')
+
+    # Define chrms
+    chrms = set()
+    query = db.execute("select seqid from features")
+    for x in query:
+        chrms.add(x['seqid'])
+    chrms = list(chrms)
+    chrms.sort()
 
     # check for blacklist
     this_dir = os.path.dirname(os.path.realpath(__file__))
@@ -900,6 +908,6 @@ if __name__ == '__main__':
         if e.__class__.__name__ == 'InterruptedError':
             sys.stderr.write("User interrupt!")
         else:
-            traceback.print_tb(e.__traceback__)
+            traceback.print_exc()
         rmtree(tmp_path)
         sys.exit(1)
