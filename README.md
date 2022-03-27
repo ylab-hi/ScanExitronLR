@@ -66,26 +66,23 @@ To run ScanExitronLR in extract mode, simply run
 selr extract ...
 ```
 
-with the following parameters
+with the following parameters:
 
-```
-usage:
-    		-i STR		REQUIRED: Input BAM file
-    		-g STR		REQUIRED: Input genome reference (e.g. hg38.fa)
-    		-r STR		REQUIRED: Input *sorted* and *bgzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
-    		-o STR		Output filename (e.g. bam_filename.exitron <- this is default)
-    		-a/--ao INT	Reports only exitrons with AO of INT or above (default: 2).
-    		-p/--pso FLOAT	Reports only exitrons with PSO of FLOAT or above (default: 0.01).
-    		-c/--cores INT	Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
-                -cp/--cluster-purity FLOAT  Reports only exitrons with cluster purity of FLOAT or above (default: 0).
-
-    		-arabidopsis	Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
-    		-m/--mapq INT	Only considers reads with mapq score >= INT (default: 50)
-    		-j/--jitter INT	Treat splice-sites with fuzzy boundry of +/- INT (default: 10).
-    		-sr		Use this flag to skip the realignment step.
-    		-sa		Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA.
-    				Files are of the form: input.isoform.exitrons, input.isoform.normals
-```
+|   parameters |    |
+| ------------ | ------------ |
+|-i STR|		REQUIRED: Input BAM file |
+|-g STR|		REQUIRED: Input genome reference (e.g. hg38.fa)
+|-r STR|		REQUIRED: Input *sorted* and *bgzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
+|-o STR|		Output filename (e.g. bam_filename.exitron <- this is default)
+|-a/--ao INT|	Reports only exitrons with AO of INT or above (default: 2).
+|-p/--pso| FLOAT|	Reports only exitrons with PSO of FLOAT or above (default: 0.01).
+|-c/--cores INT|	Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
+|-cp/--cluster-purity FLOAT|  Reports only exitrons with cluster purity of FLOAT or above (default: 0).
+|-m/--mapq INT|	Only considers reads with mapq score >= INT (default: 50)
+|-j/--jitter INT|	Treat splice-sites with fuzzy boundry of +/- INT (default: 10).
+|-sr|		Use this flag to skip the realignment step.
+|-sa|		Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals
+                    
 
 ## Annotate
 
@@ -95,17 +92,16 @@ To run ScanExitronLR in annotate mode, simply run
 selr annotate ...
 ```
 
-with the following parameters
+with the following parameters:
 
-```
-usage:
-    		-i STR		REQUIRED: Input exitron file, generated from selr extract
-    		-g STR		REQUIRED: Input genome reference (e.g. hg38.fa)
-    		-r STR		REQUIRED: Input *sorted* and *gzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
-    		-o STR		Output filename (e.g. bam_filename.exitron.annotation <- this is default)
-    		-b/--bam-file STR		If specified, annotation includes read supported NMD status directly from alignments.
-    		-arabidopsis	Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
-```
+|   parameters |    |
+| ------------ | ------------ |
+|-i STR|		REQUIRED: Input exitron file, generated from selr extract
+|-g STR|		REQUIRED: Input genome reference (e.g. hg38.fa)
+|-r STR|		REQUIRED: Input *sorted* and *gzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
+|-o STR|		Output filename (e.g. bam_filename.exitron.annotation <- this is default)
+|-b/--bam-file STR|		If specified, annotation includes read supported NMD status directly from alignments.
+|-arabidopsis|	Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
 
 The output is a tab-separated file.
 
