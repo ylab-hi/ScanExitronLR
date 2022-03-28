@@ -84,9 +84,6 @@ def parse_args():
         action="store_true",
         dest="fasta",
     )
-    parser.add_argument(
-        "-v", "--version", action="version", version=f"%(prog)s {__version__}"
-    )
     args = parser.parse_args()
     return args
 
@@ -203,7 +200,7 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
     stop_codon_pos: int
         stop_codon_pos *within* seq
     exitron_pos: int
-        exitron_pos *within* seq
+        exitron_pos *within* seq - (stop_codon_pos or start_codon_pos, depending on strand)
     seq_pos: list
         this is a list of genome positions for each nt in seq
     ej_after_start_codon: list of int
@@ -263,7 +260,7 @@ def get_gene_exitron_seq(exitron, db, genome_fn, arabidopsis):
             try:
                 cds_seq = exon.sequence(genome_fn).upper(
                 ) if strand == '+' else str(Seq(exon.sequence(genome_fn).upper()).reverse_complement())
-                exitron_pos = len(seq) + e_start - exon.start - start_codon_pos if strand == '+' else len(
+                exitron_pos = len(seq) + e_start - exon.start - start_codon_pos + 1 if strand == '+' else len(
                     seq) + e_start - exon.start - stop_codon_pos
                 seq += cds_seq[:e_start - exon.start + 1] + \
                     cds_seq[e_end - exon.start:]
@@ -376,7 +373,7 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
 
             stop_codon_pos = len(seq) - stop_codon_pos - 3
             exitron_pos = len(
-                seq[start_codon_pos:stop_codon_pos+3]) - exitron_pos
+                seq[start_codon_pos:stop_codon_pos+3]) - exitron_pos - 1
             seq_pos = seq_pos[::-1]
 
         # exitron is frameshift iff length % 3 != 0
@@ -416,8 +413,8 @@ def categorize_exitron(exitron, transcript, bamfile, db, genome_fn, arabidopsis)
 
             return exitron, dna_seq, frameshift_prot + '*'
 
-        # exitron is truncated + substitution iff (exitron_pos - 1) % 3 != 0
-        elif (exitron_pos - 1) % 3 != 0:
+        # exitron is truncated + substitution iff exitron_pos % 3 != 0
+        elif (exitron_pos) % 3 != 0:
             seq_full = get_gene_seq(exitron, db, genome_fn) if exitron['strand'] == '+' else str(
                 Seq(get_gene_seq(exitron, db, genome_fn)).reverse_complement())
             # new aa is at aa where exitron begins in spliced protein sequence

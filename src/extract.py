@@ -138,9 +138,6 @@ def parse_args():
         action="store_true",
         dest="save_abundance",
     )
-    parser.add_argument(
-        "-v", "--version", action="version", version=f"%(prog)s {__version__}"
-    )
     args = parser.parse_args()
     return args
 
