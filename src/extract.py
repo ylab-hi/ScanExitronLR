@@ -5,20 +5,21 @@
 # ScanExitronLR written by Josh Fry@Yang Lab, Hormel Institute, University of Minnesota
 #
 # ===============================================================================
-__version__ = 'v1.1.6'
-import sys
-import os
 import argparse
-import pysam
-import subprocess
-import gffutils
-import re
-import traceback
 import multiprocessing as mp
-import pandas as pd
+import os
+import re
+import subprocess
+import sys
+import traceback
+from collections import Counter
+from collections import defaultdict
 from shutil import rmtree
+
+import gffutils
+import pandas as pd
+import pysam
 from Bio import pairwise2
-from collections import Counter, defaultdict
 
 # ===============================================================================
 # Helper Methods
