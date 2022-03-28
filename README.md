@@ -83,6 +83,8 @@ with the following parameters:
 |-sr|		Use this flag to skip the realignment step.
 |-sa|		Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals
                     
+In our experience, large BAM files (~20GB) will take around 1 hour to process with 10 cores and 4GB total memory on a compute node. 
+
 
 ## Annotate
 
