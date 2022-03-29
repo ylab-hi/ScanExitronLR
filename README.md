@@ -1,14 +1,8 @@
-[![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/)
-[![PyPI](https://img.shields.io/pypi/v/scanexitronlr.svg)](https://pypi.org/project/scanexitronlr/ "PyPI")
-[![Status](https://img.shields.io/pypi/status/scanexitronlr.svg)](https://pypi.org/project/scanexitronlr "Status")
-[![Python Version](https://img.shields.io/pypi/pyversions/scanexitronlr)](https://pypi.org/project/scanexitronlr/ "Python Version")
-[![License](https://img.shields.io/pypi/l/scanexitronlr)](https://opensource.org/licenses/MIT "License")
+[![PEP8](https://img.shields.io/badge/code%20style-pep8-orange.svg)](https://www.python.org/dev/peps/pep-0008/) [![PyPI](https://img.shields.io/pypi/v/scanexitronlr.svg)](https://pypi.org/project/scanexitronlr/ "PyPI") [![Status](https://img.shields.io/pypi/status/scanexitronlr.svg)](https://pypi.org/project/scanexitronlr "Status") [![Python Version](https://img.shields.io/pypi/pyversions/scanexitronlr)](https://pypi.org/project/scanexitronlr/ "Python Version") [![License](https://img.shields.io/pypi/l/scanexitronlr)](https://opensource.org/licenses/MIT "License")
 
 # ScanExitronLR
 
-A computational workflow for exitron splicing identification in long-read RNA-seq data.
-<img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type.png#gh-light-mode-only">
-<img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type_dark.png#gh-dark-mode-only">
+A computational workflow for exitron splicing identification in long-read RNA-seq data. <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type.png#gh-light-mode-only"> <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type_dark.png#gh-dark-mode-only">
 
 # Installation
 
@@ -58,7 +52,7 @@ ScanExitronLR utilizes the `gffutils` package, which requires an SQL-lite databa
 
 Thus, if you are running ScanExitronLR on a shared server and using a shared annotation database, you may not have writing privelages in the shared space. You will need to copy your annotation file to your local directory.
 
-We have provided fully processed GTF files for [Gencode V39](https://drive.google.com/drive/folders/1LAU26BxAmTmkQdCaHJ1ba1LHBmOI8yUM?usp=sharing) and [TAIR10](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) for your convience.
+We have provided fully processed GTF files for [Gencode V39](https://drive.google.com/drive/folders/1LAU26BxAmTmkQdCaHJ1ba1LHBmOI8yUM?usp=sharing) and [TAIR10](https://drive.google.com/drive/folders/1FNZ5HRJOvGeiMxMObXBPgTGC2E0l3yeE?usp=sharing) for your convenience.
 
 To run ScanExitronLR in extract mode, simply run
 
@@ -68,20 +62,20 @@ selr extract ...
 
 with the following parameters:
 
-| Parameter                  | Description                                                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| -i STR                     | REQUIRED: Input BAM file                                                                                                                                                         |
-| -g STR                     | REQUIRED: Input genome reference (e.g. hg38.fa)                                                                                                                                  |
-| -r STR                     | REQUIRED: Input _sorted_ and _bgzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz).                                                                                    |
-| -o STR                     | Output filename (e.g. bam_filename.exitron <- this is default)                                                                                                                   |
-| -a/--ao INT                | Reports only exitrons with AO of INT or above (default: 2).                                                                                                                      |
-| -p/--pso                   | FLOAT                                                                                                                                                                            | Reports only exitrons with PSO of FLOAT or above (default: 0.01). |
-| -c/--cores INT             | Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.                                                            |
-| -cp/--cluster-purity FLOAT | Reports only exitrons with cluster purity of FLOAT or above (default: 0).                                                                                                        |
-| -m/--mapq INT              | Only considers reads with mapq score >= INT (default: 50)                                                                                                                        |
-| -j/--jitter INT            | Treat splice-sites with fuzzy boundry of +/- INT (default: 10).                                                                                                                  |
-| -sr                        | Use this flag to skip the realignment step.                                                                                                                                      |
-| -sa                        | Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals |
+| Parameter | Description |
+| --- | --- |
+| -i STR | REQUIRED: Input BAM file |
+| -g STR | REQUIRED: Input genome reference (e.g. hg38.fa) |
+| -r STR | REQUIRED: Input _sorted_ and bgzip'd annotation reference (e.g. gencode_v38_sorted.gtf.gz). |
+| -o STR | Output filename (e.g. bam_filename.exitron <- this is default) |
+| -a/--ao INT | Reports only exitrons with AO of INT or above (default: 2). |
+| -p/--pso FLOAT | Reports only exitrons with PSO of FLOAT or above (default: 0.01). |
+| -c/--cores INT | Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores. |
+| -cp/--cluster-purity FLOAT | Reports only exitrons with cluster purity of FLOAT or above (default: 0). |
+| -m/--mapq INT | Only considers reads with mapq score >= INT (default: 50) |
+| -j/--jitter INT | Treat splice-sites with fuzzy boundry of +/- INT (default: 10). |
+| -sr | Use this flag to skip the realignment step. |
+| -sa | Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals |
 
 In our experience, large BAM files (~20GB) will take around 1 hour to process with 10 cores and 4GB total memory on a compute node.
 
@@ -95,14 +89,14 @@ selr annotate ...
 
 with the following parameters:
 
-| parameters        | Description                                                                                                 |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| -i STR            | REQUIRED: Input exitron file, generated from selr extract                                                   |
-| -g STR            | REQUIRED: Input genome reference (e.g. hg38.fa)                                                             |
-| -r STR            | REQUIRED: Input _sorted_ and _ gzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz).               |
-| -o STR            | Output filename (e.g. bam_filename.exitron.annotation <- this is default)                                   |
-| -b/--bam-file STR | If specified, annotation includes read supported NMD status directly from alignments.                       |
-| -arabidopsis      | Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions. |
+| parameters | Description |
+| --- | --- |
+| -i STR | REQUIRED: Input exitron file, generated from selr extract |
+| -g STR | REQUIRED: Input genome reference (e.g. hg38.fa) |
+| -r STR | REQUIRED: Input _sorted_ and _ gzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz). |
+| -o STR | Output filename (e.g. bam_filename.exitron.annotation <- this is default) |
+| -b/--bam-file STR | If specified, annotation includes read supported NMD status directly from alignments. |
+| -arabidopsis | Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions. |
 
 The output is a tab-separated file.
 
