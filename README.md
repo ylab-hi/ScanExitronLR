@@ -2,26 +2,26 @@
 
 # ScanExitronLR
 
-A computational workflow for exitron splicing identification in long-read RNA-seq data. <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type.png#gh-light-mode-only"> <img align="right" width="500" src="https://github.com/ylab-hi/ScanExitronLR/blob/main/splice_type_dark.png#gh-dark-mode-only">
+A computational workflow for exitron splicing identification in long-read RNA-seq data. <img align="right" width="500" src="https://raw.githubusercontent.com/ylab-hi/ScanExitronLR/main/splice_type.png#gh-light-mode-only"> <img align="right" width="500" src="https://raw.githubusercontent.com/ylab-hi/ScanExitronLR/main/splice_type_dark.png#gh-dark-mode-only">
 
 # Installation
 
 The recommended way to install `ScanExitronLR` is using [pip](https://pip.pypa.io/en/stable/):
 
-```bash
-pip install scanexitronlr
+```console
+$ pip install scanexitronlr
 ```
 
 This will pull and install the latest stable release from [PyPi](https://pypi.org/). ScanExitronLR requires Python 3.7+. Thus you need to make sure that the `pip` is for python3 using e.g. `which pip` or using:
 
-```bash
-pip3 install scanexitronlr
+```console
+$ pip3 install scanexitronlr
 ```
 
 To test your installation, run:
 
-```bash
-selr
+```console
+$ selr
 ```
 
 You should see the version number, usage instructions and commands. (If you prefer a more descriptive command `scanexitronlr` also works.)
@@ -36,14 +36,14 @@ ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when callin
 
 To sort your gtf file, use the command:
 
-```
-awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k4,4n -k5,5n"}' in.gtf > out_sorted.gtf
+```console
+$ awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k4,4n -k5,5n"}' in.gtf > out_sorted.gtf
 ```
 
 To bgzip your gene annotation file, use:
 
-```
-bgzip in.gtf
+```console
+$ bgzip in.gtf
 ```
 
 `bgzip` is part of the [htslib](http://www.htslib.org/), which you most likely already have installed if you care about BAM files. Otherwise, you can get it [here](http://www.htslib.org/). It is important to note that if you download the [latest GENCODE release](https://www.gencodegenes.org/human/) it will be in the gzip form, not bgzip. You will need to run `gzip -d` and then `bgzip`.
@@ -56,8 +56,8 @@ We have provided fully processed GTF files for [Gencode V39](https://drive.googl
 
 To run ScanExitronLR in extract mode, simply run
 
-```bash
-selr extract ...
+```console
+$ selr extract ...
 ```
 
 with the following parameters:
@@ -83,8 +83,8 @@ In our experience, large BAM files (~20GB) will take around 1 hour to process wi
 
 To run ScanExitronLR in annotate mode, simply run
 
-```bash
-selr annotate ...
+```console
+$ selr annotate ...
 ```
 
 with the following parameters:
