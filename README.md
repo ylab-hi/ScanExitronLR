@@ -68,23 +68,22 @@ selr extract ...
 
 with the following parameters:
 
-|   parameters |    |
-| ------------ | ------------ |
-|-i STR|		REQUIRED: Input BAM file |
-|-g STR|		REQUIRED: Input genome reference (e.g. hg38.fa)
-|-r STR|		REQUIRED: Input *sorted* and *bgzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
-|-o STR|		Output filename (e.g. bam_filename.exitron <- this is default)
-|-a/--ao INT|	Reports only exitrons with AO of INT or above (default: 2).
-|-p/--pso| FLOAT|	Reports only exitrons with PSO of FLOAT or above (default: 0.01).
-|-c/--cores INT|	Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.
-|-cp/--cluster-purity FLOAT|  Reports only exitrons with cluster purity of FLOAT or above (default: 0).
-|-m/--mapq INT|	Only considers reads with mapq score >= INT (default: 50)
-|-j/--jitter INT|	Treat splice-sites with fuzzy boundry of +/- INT (default: 10).
-|-sr|		Use this flag to skip the realignment step.
-|-sa|		Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals
-                    
-In our experience, large BAM files (~20GB) will take around 1 hour to process with 10 cores and 4GB total memory on a compute node. 
+| parameters                 |                                                                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| -i STR                     | REQUIRED: Input BAM file                                                                                                                                                         |
+| -g STR                     | REQUIRED: Input genome reference (e.g. hg38.fa)                                                                                                                                  |
+| -r STR                     | REQUIRED: Input _sorted_ and _bgzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz).                                                                                    |
+| -o STR                     | Output filename (e.g. bam_filename.exitron <- this is default)                                                                                                                   |
+| -a/--ao INT                | Reports only exitrons with AO of INT or above (default: 2).                                                                                                                      |
+| -p/--pso                   | FLOAT                                                                                                                                                                            | Reports only exitrons with PSO of FLOAT or above (default: 0.01). |
+| -c/--cores INT             | Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores.                                                            |
+| -cp/--cluster-purity FLOAT | Reports only exitrons with cluster purity of FLOAT or above (default: 0).                                                                                                        |
+| -m/--mapq INT              | Only considers reads with mapq score >= INT (default: 50)                                                                                                                        |
+| -j/--jitter INT            | Treat splice-sites with fuzzy boundry of +/- INT (default: 10).                                                                                                                  |
+| -sr                        | Use this flag to skip the realignment step.                                                                                                                                      |
+| -sa                        | Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals |
 
+In our experience, large BAM files (~20GB) will take around 1 hour to process with 10 cores and 4GB total memory on a compute node.
 
 ## Annotate
 
@@ -96,14 +95,14 @@ selr annotate ...
 
 with the following parameters:
 
-|   parameters |    |
-| ------------ | ------------ |
-|-i STR|		REQUIRED: Input exitron file, generated from selr extract
-|-g STR|		REQUIRED: Input genome reference (e.g. hg38.fa)
-|-r STR|		REQUIRED: Input *sorted* and *gzip'd* annotation reference (e.g. gencode_v38_sorted.gtf.gz).
-|-o STR|		Output filename (e.g. bam_filename.exitron.annotation <- this is default)
-|-b/--bam-file STR|		If specified, annotation includes read supported NMD status directly from alignments.
-|-arabidopsis|	Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions.
+| parameters        |                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| -i STR            | REQUIRED: Input exitron file, generated from selr extract                                                   |
+| -g STR            | REQUIRED: Input genome reference (e.g. hg38.fa)                                                             |
+| -r STR            | REQUIRED: Input _sorted_ and _gzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz).                |
+| -o STR            | Output filename (e.g. bam_filename.exitron.annotation <- this is default)                                   |
+| -b/--bam-file STR | If specified, annotation includes read supported NMD status directly from alignments.                       |
+| -arabidopsis      | Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions. |
 
 The output is a tab-separated file.
 
@@ -117,4 +116,16 @@ Please feel free to post any issues here on github.
 
 # Citation
 
-TBD
+```
+@article{Fry_ScanExitronLR_characterization_and_2022,
+author = {Fry, Joshua P and Li, Yang Yang},
+doi = {10.1101/2022.03.25.485864},
+journal = {bioRxiv},
+month = {3},
+number = {1},
+pages = {1--7},
+title = {{ScanExitronLR: characterization and quantification of exitron splicing events in long-read RNA-seq data}},
+volume = {1},
+year = {2022}
+}
+```
