@@ -7,6 +7,9 @@ authors:
   - family-names: "Li"
     given-names: "Yang Yang"
     orcid: "https://orcid.org/0000-0001-8224-1067"
+  - family-names: "Yang"
+    given-names: "Ren Dong"
+    orcid: "https://orcid.org/0000-0001-8224-106x"
 title: "ScanExitronLR: characterization and quantification of
   exitron splicing events in long-read RNA-seq data"
 version: 1.0.0
@@ -22,6 +25,9 @@ preferred-citation:
     - family-names: "Li"
       given-names: "Yang Yang"
       orcid: "https://orcid.org/0000-0001-8224-1067"
+    - family-names: "Yang"
+      given-names: "Ren Dong"
+      orcid: "https://orcid.org/0000-0001-8224-106x"
   doi: "10.1101/2022.03.25.485864"
   journal: "bioRxiv"
   month: 3
