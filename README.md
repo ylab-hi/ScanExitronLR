@@ -68,7 +68,7 @@ selr extract ...
 
 with the following parameters:
 
-| parameters                 |                                                                                                                                                                                  |
+| Parameter                  | Description                                                                                                                                                                      |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | -i STR                     | REQUIRED: Input BAM file                                                                                                                                                         |
 | -g STR                     | REQUIRED: Input genome reference (e.g. hg38.fa)                                                                                                                                  |
@@ -95,11 +95,11 @@ selr annotate ...
 
 with the following parameters:
 
-| parameters        |                                                                                                             |
+| parameters        | Description                                                                                                 |
 | ----------------- | ----------------------------------------------------------------------------------------------------------- |
 | -i STR            | REQUIRED: Input exitron file, generated from selr extract                                                   |
 | -g STR            | REQUIRED: Input genome reference (e.g. hg38.fa)                                                             |
-| -r STR            | REQUIRED: Input _sorted_ and _gzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz).                |
+| -r STR            | REQUIRED: Input _sorted_ and _ gzip'd_ annotation reference (e.g. gencode_v38_sorted.gtf.gz).               |
 | -o STR            | Output filename (e.g. bam_filename.exitron.annotation <- this is default)                                   |
 | -b/--bam-file STR | If specified, annotation includes read supported NMD status directly from alignments.                       |
 | -arabidopsis      | Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions. |
