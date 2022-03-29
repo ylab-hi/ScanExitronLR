@@ -112,7 +112,7 @@ Please feel free to post any issues here on github.
 
 ```
 @article{Fry_ScanExitronLR_characterization_and_2022,
-author = {Fry, Joshua P and Li, Yang Yang},
+author = {Fry, Joshua P and Li, Yang Yang and Yang, Ren Dong},
 doi = {10.1101/2022.03.25.485864},
 journal = {bioRxiv},
 month = {3},
