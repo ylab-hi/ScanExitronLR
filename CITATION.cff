@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Fry"
+    given-names: "Joshua P"
+    orcid: "https://orcid.org/0000-0002-2503-611X"
+  - family-names: "Li"
+    given-names: "Yang Yang"
+    orcid: "https://orcid.org/0000-0001-8224-1067"
+  - family-names: "Yang"
+    given-names: "Ren Dong"
+    orcid: "https://orcid.org/0000-0001-8224-106x"
+title: "ScanExitronLR: characterization and quantification of
+  exitron splicing events in long-read RNA-seq data"
+version: 1.0.0
+doi: 10.1101/2022.03.25.485864
+date-released: 2022-03-27
+url: "https://github.com/ylab-hi/ScanExitronLR"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Fry"
+      given-names: "Joshua P"
+      orcid: "https://orcid.org/0000-0002-2503-611X"
+    - family-names: "Li"
+      given-names: "Yang Yang"
+      orcid: "https://orcid.org/0000-0001-8224-1067"
+    - family-names: "Yang"
+      given-names: "Ren Dong"
+      orcid: "https://orcid.org/0000-0001-8224-106x"
+  doi: "10.1101/2022.03.25.485864"
+  journal: "bioRxiv"
+  month: 3
+  start: 1 # First page number
+  end: 7 # Last page number
+  title: "ScanExitronLR: characterization and quantification of
+  exitron splicing events in long-read RNA-seq data"
+  issue: 1
+  volume: 1
+  year: 2022
