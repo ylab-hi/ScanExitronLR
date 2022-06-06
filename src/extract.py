@@ -184,7 +184,7 @@ def find_introns(read_iterator):
     reads = defaultdict(list)
 
     # only M/=/X (0/7/8) and D (2) are related to genome position
-    match = {0, 7, 9}
+    match = {0, 7, 8}
     for r in read_iterator:
         base_position = r.pos
         read_position = 0
