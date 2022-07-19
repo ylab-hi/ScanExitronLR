@@ -68,7 +68,7 @@ with the following parameters:
 | -g STR | REQUIRED: Input genome reference (e.g. hg38.fa) |
 | -r STR | REQUIRED: Input _sorted_ and bgzip'd annotation reference (e.g. gencode_v38_sorted.gtf.gz). |
 | -o STR | Output filename (e.g. bam_filename.exitron <- this is default) |
-| -a/--ao INT | Reports only exitrons with AO of INT or above (default: 2). |
+| -a/--ao INT | Reports only exitrons with AO (# of supporting reads) of INT or above (default: 2). |
 | -p/--pso FLOAT | Reports only exitrons with PSO of FLOAT or above (default: 0.01). |
 | -c/--cores INT | Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores. |
 | -cp/--cluster-purity FLOAT | Reports only exitrons with cluster purity of FLOAT or above (default: 0). |
@@ -77,7 +77,14 @@ with the following parameters:
 | -sr | Use this flag to skip the realignment step. |
 | -sa | Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals |
 
-In our experience, large BAM files (~20GB) will take around 1 hour to process with 10 cores and 4GB total memory on a compute node.
+### Choosing Filtering Parameters
+
+ScanExitronLR filters exitron splicing events based on AO (-a/--ao), PSO (-p/--pso) and cluster purity (-cp/--cluster-purity):
+> __AO__. By default, ScanExitronLR only reports exitrons with at least two supporting reads (AO >= 2). This is filter out random sequencing errors that may lead to a faulty alignment and false splicing event. However, if the coverage is particularly low, you may need to set the AO threshold to 1 in order to detect exitrons in medium and lower expressed genes. 
+
+> __PSO__. By default, ScanExitronLR only reports exitrons with a splicing frequence (PSO) above 1%. Splicing events below this frequency may not be biologically relevant or may just be due to splicing noise. Setting PSO filtering to 0% is not recommended because it will increase running time and report many low quality splicing events. 
+
+> __Cluster Purity__. By default, ScanExitronLR does not filter by cluster purity.  However, cluster purity is important for having high confidence the the reported splice sites. For example, if the cluster purity is 90%, then 90% of the exitron spliced reads have the reported splice sites. Thus, one ought to be cautious when investigating exitrons with cluster purities below 50%. There is an exitron splicing event being detected, but it is unclear where the exact splice sites occur. This can happen if the reads are particularly noisy or are aligned to a repetitive region. 
 
 ## Annotate
 
