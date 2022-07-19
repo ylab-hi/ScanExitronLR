@@ -85,7 +85,7 @@ ScanExitronLR filters exitron splicing events based on AO (-a/--ao), PSO (-p/--p
 > __PSO__. By default, ScanExitronLR only reports exitrons with a splicing frequence (PSO) above 1%. Splicing events below this frequency may not be biologically relevant or may just be due to splicing noise. Setting PSO filtering to 0% is not recommended because it will increase running time and report many low quality splicing events. 
 
 > __Cluster Purity__. By default, ScanExitronLR does not filter by cluster purity.  However, cluster purity is important for having high confidence the the reported splice sites. For example, if the cluster purity is 90%, then 90% of the exitron spliced reads have the reported splice sites. Thus, one ought to be cautious when investigating exitrons with cluster purities below 50%. There is an exitron splicing event being detected, but it is unclear where the exact splice sites occur. This can happen if the reads are particularly noisy or are aligned to a repetitive region. 
-
+<img align="center" width="800" src="https://raw.githubusercontent.com/ylab-hi/ScanExitronLR/main/cluster_purity_wb.png">
 ## Annotate
 
 To run ScanExitronLR in annotate mode, simply run
