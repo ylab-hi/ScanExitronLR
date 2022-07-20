@@ -32,7 +32,7 @@ ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when callin
 
 ## Extract
 
-`extract` requires three inputs: (1) a BAM alignment file of long-reads containing the ts:A flag (provided by default by Minimap2), (2) a reference genome and (3) a sorted and bgzip'd gene annotation file. Currently only gtf files are supported.
+`extract` requires three inputs: (1) a BAM alignment file of long-reads containing the ts:A flag (provided by default by Minimap2), (2) a reference genome and (3) a sorted and bgzip'd gene annotation file. Currently only gtf files are supported. We suggest using the `--junc-bed` parameter in minimap2 for more accurate spliced alignments.  Without the parameter, it may be harder to distinguish unannoted exitron splicing events from annotated splicing events. 
 
 To sort your gtf file, use the command:
 
@@ -70,12 +70,14 @@ with the following parameters:
 | -o STR | Output filename (e.g. bam_filename.exitron <- this is default) |
 | -a/--ao INT | Reports only exitrons with AO (# of supporting reads) of INT or above (default: 2). |
 | -p/--pso FLOAT | Reports only exitrons with PSO of FLOAT or above (default: 0.01). |
-| -c/--cores INT | Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use 4GB total memory on 10 cores. |
+| -c/--cores INT | Use INT cores (default: 1). Use as many as you can spare. Even large BAM files only use at most 4GB total memory on 10 cores. |
 | -cp/--cluster-purity FLOAT | Reports only exitrons with cluster purity of FLOAT or above (default: 0). |
 | -m/--mapq INT | Only considers reads with mapq score >= INT (default: 50) |
 | -j/--jitter INT | Treat splice-sites with fuzzy boundry of +/- INT (default: 10). |
 | -sr | Use this flag to skip the realignment step. |
-| -sa | Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals |
+| -sa | Use this flag to save isoform abundance files for downstream differential isoform usage analysis with LIQA. Files are of the form: input.isoform.exitrons, input.isoform.normals (See example page) |
+
+We provide some functionality to perform exitron differential isoform usage with the `-sa` flag.  See [here](https://github.com/ylab-hi/ScanExitronLR/tree/main/test_data) for an example.
 
 ### Choosing Filtering Parameters
 
