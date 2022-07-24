@@ -88,6 +88,8 @@ ScanExitronLR filters exitron splicing events based on AO (-a/--ao), PSO (-p/--p
 
 > __Cluster Purity__. By default, ScanExitronLR does not filter by cluster purity.  However, cluster purity is important for having high confidence the the reported splice sites. For example, if the cluster purity is 90%, then 90% of the exitron spliced reads have the reported splice sites. Thus, one ought to be cautious when investigating exitrons with cluster purities below 50%. There is an exitron splicing event being detected, but it is unclear where the exact splice sites occur. This can happen if the reads are particularly noisy or are aligned to a repetitive region. 
 <img align="center" width="800" src="https://raw.githubusercontent.com/ylab-hi/ScanExitronLR/main/cluster_purity_wb.png">
+
+
 ## Annotate
 
 To run ScanExitronLR in annotate mode, simply run
@@ -107,7 +109,37 @@ with the following parameters:
 | -b/--bam-file STR | If specified, annotation includes read supported NMD status directly from alignments. |
 | -arabidopsis | Use this flag if using alignments from Arabidopsis. See github page for annotation file/genome assumptions. |
 
-The output is a tab-separated file.
+The output is a tab-separated file with the following columns:
+
+
+| Column | Description |
+| --- | --- |
+| chrom | Chromosome name |
+| start | Exitron start | 
+| end | Exitron end |
+| name | Unique exitron identifier |
+| region | Exitron region | 
+| ao | # of supporting reads |
+| strand | Gene strand | 
+| gene_name | Gene name from annotation |
+| gene_id | Gene ID from annotation |
+| length | Exitron legnth | 
+| splice_site | Exitron splice sites (G[T/C]-AG, AT-AC) |
+| transcript_id | Transcript ID from annotation |
+| pso | Exitron percent spliced out value |
+| dp | Total depth at exitron position (PSO = AO/DP) | 
+| cluster_purity | Exitron cluster purity |
+| exitron_prot_position | Position in amino acid sequence of exitron splicing event | 
+| type | Exitron type (frameshift/truncation/truncation+substitution) | 
+| substitution | If from substitution type, determines which amino acid substitution occured |
+| nmd_status_predicted | If frameshift type, determines if a downstream stop codon is 50 nt upstream of splicing junction | 
+| nmd_status_percentage | If frameshift type, reports percentage of reads that directly support a stop codon 50 nt upstream of splicing junction |
+| downstream_inframe_AUG | If frameshift type, reports whether there is a downstream AUG, usually attenuating NMD efficiency |
+| start_proximal_PTC | If frameshift type, reports whether premature stop codon is within 200 nt of start codon, usually attenuating NMD efficiency |
+| prot_domains | Any PFAM domains that are disrupted by the exitron splicing |
+| reads | Name of all reads which are exitron spliced | 
+
+**ScanExitronLR** may assign transcript abundance to multiple annotated transcripts. If this is the case, each transcript will get an annotation. Thus, if an exitron is associated with two transcripts, there will be two rows in the annotation output, one for each transcript. 
 
 # Example
 
