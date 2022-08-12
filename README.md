@@ -26,6 +26,8 @@ $ selr
 
 You should see the version number, usage instructions and commands. (If you prefer a more descriptive command `scanexitronlr` also works.)
 
+**NOTE**: ScanExitronLR uses the LIQA package to infer exitron specific transcript abundance. Currently, LIQA sometimes crashes with newest versions of the lifelines package.  To avoid this, install version v0.26.4 of lifelines with `conda install lifelines=v0.26.4`.
+
 # Usage
 
 ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when calling exitrons in an alignment and `annotate` when annotating exitrons called using `extract`.
