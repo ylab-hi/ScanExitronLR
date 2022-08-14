@@ -32,7 +32,12 @@ You should see the version number, usage instructions and commands. (If you pref
 
 ScanExitronLR has two modes, `extract` and `annotate`. Use `extract` when calling exitrons in an alignment and `annotate` when annotating exitrons called using `extract`.
 
-## Extract
+
+<details>
+  <summary><h3> Extract </h3></summary>
+  <p>
+  
+
 
 `extract` requires three inputs: (1) a BAM alignment file of long-reads containing the ts:A flag (provided by default by Minimap2), (2) a reference genome and (3) a sorted and bgzip'd gene annotation file. Currently only gtf files are supported. We suggest using the `--junc-bed` parameter in minimap2 for more accurate spliced alignments.  Without the parameter, it may be harder to distinguish unannoted exitron splicing events from annotated splicing events. 
 
@@ -81,7 +86,13 @@ with the following parameters:
 
 We provide some functionality to perform exitron differential isoform usage with the `-sa` flag.  See [here](https://github.com/ylab-hi/ScanExitronLR/tree/main/test_data) for an example.
 
-### Choosing Filtering Parameters
+  </p>
+</details>
+
+<details>
+  <summary><h3> Choosing Filtering Parameters </h3></summary>
+  <p>
+
 
 ScanExitronLR filters exitron splicing events based on AO (-a/--ao), PSO (-p/--pso) and cluster purity (-cp/--cluster-purity):
 > __AO__. By default, ScanExitronLR only reports exitrons with at least two supporting reads (AO >= 2). This is filter out random sequencing errors that may lead to a faulty alignment and false splicing event. However, if the coverage is particularly low, you may need to set the AO threshold to 1 in order to detect exitrons in medium and lower expressed genes. 
@@ -91,6 +102,8 @@ ScanExitronLR filters exitron splicing events based on AO (-a/--ao), PSO (-p/--p
 > __Cluster Purity__. By default, ScanExitronLR does not filter by cluster purity.  However, cluster purity is important for having high confidence the the reported splice sites. For example, if the cluster purity is 90%, then 90% of the exitron spliced reads have the reported splice sites. Thus, one ought to be cautious when investigating exitrons with cluster purities below 50%. There is an exitron splicing event being detected, but it is unclear where the exact splice sites occur. This can happen if the reads are particularly noisy or are aligned to a repetitive region. 
 <img align="center" width="800" src="https://raw.githubusercontent.com/ylab-hi/ScanExitronLR/main/cluster_purity_wb.png">
 
+  </p>
+</details>
 
 ## Annotate
 
