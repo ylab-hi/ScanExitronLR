@@ -21,7 +21,7 @@ setuptools.setup(
         "Development Status :: 5 - Production/Stable",
         "Programming Language :: Python :: 3.7",
     ],
-    install_requires=["pysam", "liqa", "gffutils", "pandas", "biopython", "lifelines==0.26.4"],
+    install_requires=["pysam", "liqa", "gffutils", "pandas", "biopython", "lifelines==0.27.2"],
     python_requires='>=3.7',
     packages=["src"],
     package_dir={"src": "src"},
