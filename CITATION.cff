@@ -13,7 +13,7 @@ authors:
 title: "ScanExitronLR: characterization and quantification of
   exitron splicing events in long-read RNA-seq data"
 version: 1.0.0
-doi: 10.1101/2022.03.25.485864
+doi:  10.1093/bioinformatics/btac626
 date-released: 2022-03-27
 url: "https://github.com/ylab-hi/ScanExitronLR"
 preferred-citation:
@@ -28,13 +28,13 @@ preferred-citation:
     - family-names: "Yang"
       given-names: "Ren Dong"
       orcid: "https://orcid.org/0000-0001-8224-106x"
-  doi: "10.1101/2022.03.25.485864"
-  journal: "bioRxiv"
-  month: 3
-  start: 1 # First page number
-  end: 7 # Last page number
+  doi: "10.1093/bioinformatics/btac626"
+  journal: "Bioinformatics"
+  month: 10
+  start: 31 # First page number
+  end: 38 # Last page number
   title: "ScanExitronLR: characterization and quantification of
   exitron splicing events in long-read RNA-seq data"
-  issue: 1
+  issue: 21
   volume: 1
   year: 2022
