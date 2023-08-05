@@ -167,15 +167,18 @@ Please feel free to post any issues here on github.
 # Citation
 
 ```bibtex
-@article{Fry_ScanExitronLR_characterization_and_2022,
-author = {Fry, Joshua P and Li, Yang Yang and Yang, Ren Dong},
-doi = {10.1101/2022.03.25.485864},
-journal = {bioRxiv},
-month = {3},
-number = {1},
-pages = {1--7},
-title = {{ScanExitronLR: characterization and quantification of exitron splicing events in long-read RNA-seq data}},
-volume = {1},
-year = {2022}
+@article{Fry2022,
+  doi = {10.1093/bioinformatics/btac626},
+  url = {https://doi.org/10.1093/bioinformatics/btac626},
+  year = {2022},
+  month = sep,
+  publisher = {Oxford University Press ({OUP})},
+  volume = {38},
+  number = {21},
+  pages = {4966--4968},
+  author = {Joshua Fry and Yangyang Li and Rendong Yang},
+  editor = {Christina Kendziorski},
+  title = {{ScanExitronLR}: characterization and quantification of exitron splicing events in long-read {RNA}-seq data},
+  journal = {Bioinformatics}
 }
 ```
