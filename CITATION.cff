@@ -30,11 +30,11 @@ preferred-citation:
       orcid: "https://orcid.org/0000-0001-8224-106x"
   doi: "10.1093/bioinformatics/btac626"
   journal: "Bioinformatics"
-  month: 10
-  start: 31 # First page number
-  end: 38 # Last page number
+  month: 9
+  start: 4966 # First page number
+  end: 4968 # Last page number
   title: "ScanExitronLR: characterization and quantification of
   exitron splicing events in long-read RNA-seq data"
   issue: 21
-  volume: 1
+  volume: 38
   year: 2022
